@@ -1,8 +1,7 @@
 # Runs every automated test on a clean Windows machine whenever code is pushed.
 #
-# Cost control (the repository is private, on GitHub's free plan: 2,000 Linux-equivalent minutes a month,
-# and Windows minutes count double): documentation-only pushes are skipped, a newer push cancels an
-# older run still in progress, and downloaded build files are cached. See docs/ci.md.
+# The repository is public, so GitHub's standard runners are free: every push and pull request runs the tests, documentation-only ones included (so the required "test"
+# check always reports and a documentation-only pull request can be merged). A newer push cancels an older run still in progress, and downloaded build files are cached. See docs/ci.md.
 #
 # Not run here: the native CD helper (needs the MSYS2/libcdio build and a real drive) and the LAME tests
 # (LAME is built locally); those tests skip themselves when their tools are absent.
@@ -11,12 +10,10 @@ name: CI
 on:
   push:
     branches: ["main", "develop"]
-    paths-ignore: ["docs/**", "**/*.md", "Guiding Documents/**"]
   # A pull request into main runs the tests too, so a long-lived branch (lyric-sync) is tested once, when it is about to be merged, without spending
   # Windows minutes on every push to it.
   pull_request:
     branches: ["main", "develop"]
-    paths-ignore: ["docs/**", "**/*.md", "Guiding Documents/**"]
   workflow_dispatch:
 
 concurrency:

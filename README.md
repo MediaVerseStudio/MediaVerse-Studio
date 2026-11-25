@@ -143,6 +143,8 @@ The name "MediaVerse Studio" and its logo are not covered by the GPL: changed ve
 
 ## Supporting the project
 
-MediaVerse Studio is free and will stay free. It is made in spare time and supported only by voluntary
-donations; there are no paid features, adverts or tracking. Donations help pay for things such as
-developer registrations and test devices. (A donation link will be added here once it is set up.)
+MediaVerse Studio is free and will stay free. It is made in spare time; there are no paid features, adverts or tracking. There is no donation link at the moment; if the project ever grows to need one, it will be announced here.
+
+## Credits
+
+Created and maintained by Kris Turner. Thank you to Jason Williams for the inspiration and encouragement to build it. The outside software the program builds on is credited in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). See also [AUTHORS.md](AUTHORS.md).
