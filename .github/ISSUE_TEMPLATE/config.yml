@@ -4,5 +4,5 @@ contact_links:
     url: https://mediaverse.studio/#beta
     about: Help test MediaVerse Studio on Windows, Android and Samsung TVs
   - name: Private security report
-    url: mailto:contact@mediaverse.studio?subject=Security
-    about: Please do not report vulnerabilities in public issues
+    url: https://github.com/MediaVerseStudio/MediaVerse-Studio/security/advisories/new
+    about: Report it privately here; please do not use a public issue

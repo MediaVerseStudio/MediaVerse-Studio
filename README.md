@@ -26,7 +26,7 @@ The Windows installer is not signed yet (code signing for free software needs a 
 
 ## Help test it
 
-MediaVerse Studio is looking for beta testers on Windows 11, Android, Samsung TVs, Google TV and Chromecast, with or without a Jellyfin server, and Linux users for when that build exists. Install the beta from the Releases page and tell us what you find; the project gets what it needs to reach the stores (`docs/beta-testing.md` explains why and how). Issues are welcome with the templates in `.github/ISSUE_TEMPLATE/` (bug, beta feedback, idea); you can also write to contact@mediaverse.studio or use the form on the website. Vulnerabilities go to the private address in [`SECURITY.md`](SECURITY.md).
+MediaVerse Studio is looking for beta testers on Windows 11, Android, Samsung TVs, Google TV and Chromecast, with or without a Jellyfin server, and Linux users for when that build exists. Install the beta from the Releases page and tell us what you find; the project gets what it needs to reach the stores (`docs/beta-testing.md` explains why and how). Please post questions, problems and ideas on the [issue board](../../issues/new/choose) (templates for a bug, beta feedback and an idea) rather than by e-mail, so others can see and help. Vulnerabilities go through GitHub's private reporting described in [`SECURITY.md`](SECURITY.md).
 ---
 
 ## For AI agents and contributors
