@@ -1,0 +1,80 @@
+# Runs every automated test on a clean Windows machine whenever code is pushed.
+#
+# Cost control (the repository is private, on GitHub's free plan: 2,000 Linux-equivalent minutes a month,
+# and Windows minutes count double): documentation-only pushes are skipped, a newer push cancels an
+# older run still in progress, and downloaded build files are cached. See docs/ci.md.
+#
+# Not run here: the native CD helper (needs the MSYS2/libcdio build and a real drive) and the LAME tests
+# (LAME is built locally); those tests skip themselves when their tools are absent.
+name: CI
+
+on:
+  push:
+    branches: ["main", "develop"]
+    paths-ignore: ["docs/**", "**/*.md", "Guiding Documents/**"]
+  # A pull request into main runs the tests too, so a long-lived branch (lyric-sync) is tested once, when it is about to be merged, without spending
+  # Windows minutes on every push to it.
+  pull_request:
+    branches: ["main", "develop"]
+    paths-ignore: ["docs/**", "**/*.md", "Guiding Documents/**"]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      # The tests never start Electron, so its large binary is not downloaded.
+      ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+      CARGO_TERM_COLOR: never
+    steps:
+      # Official GitHub actions, pinned to exact commits.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: web/app/package-lock.json
+
+      - name: Rust toolchain
+        run: |
+          rustup update stable --no-self-update
+          rustc --version
+          cargo --version
+
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+          key: cargo-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
+
+      # Standard rustfmt formatting (no rustfmt.toml: the defaults are the rule). Fails in seconds, before the slow tests;
+      # fix with `cargo fmt --all` and commit the result.
+      - name: Rust formatting
+        run: cargo fmt --all --check
+
+      - name: Rust tests
+        run: cargo test --workspace
+
+      - name: Web app install
+        working-directory: web/app
+        run: npm ci
+
+      - name: Web app checks
+        working-directory: web/app
+        run: |
+          npm test
+          npm run build
+          npm run test:electron

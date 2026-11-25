@@ -1,0 +1,4 @@
+# Extra Cargo settings for the test and installer builds (used with `cargo build --config tools/crt-static.toml`):
+# link the C runtime into the program so it starts on a computer without the Visual C++ Redistributable.
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]

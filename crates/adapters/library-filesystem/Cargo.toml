@@ -1,0 +1,8 @@
+[package]
+name = "mediaverse_library_filesystem"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+mediaverse_domain = { path = "../../domain" }

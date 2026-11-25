@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  TVs and speakers on the home network speak plain HTTP (UPnP descriptions and DLNA control, the phone's own song
+  links). The app only ever contacts home-network addresses (Dlna.http and CastConnection refuse anything else), and
+  the app's own pages are served over https. Casting needs this (owner, 2026-11-11).
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

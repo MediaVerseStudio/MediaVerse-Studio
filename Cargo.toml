@@ -1,0 +1,35 @@
+[workspace]
+members = [
+    "crates/domain",
+    "crates/application",
+    "crates/adapters/library-filesystem",
+    "crates/adapters/metadata-tags",
+    "crates/adapters/persistence-sqlite",
+    "crates/host",
+    "crates/accuraterip",
+    "crates/ripper",
+    "crates/disc-metadata",
+    "crates/tag-repair",
+    "crates/lyric-ai",
+    "crates/lyric-engine",
+    "crates/page-reader",
+    "apps/sidecar",
+    "apps/cd-helper",
+    "apps/installer-stub",
+]
+# The Tauri shell is archived (decision D19); it is not built or tested.
+exclude = ["archive"]
+default-members = [
+    "crates/domain",
+    "crates/application",
+]
+resolver = "3"
+
+[workspace.package]
+edition = "2024"
+license = "GPL-3.0-or-later"
+version = "0.9.0"
+
+
+
+

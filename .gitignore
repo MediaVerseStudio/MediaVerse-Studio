@@ -1,0 +1,15 @@
+/target/
+/web/app/node_modules/
+/web/app/dist/
+/TestMedia/
+/third_party/cache/
+/third_party/build/
+/third_party/source/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+/dist-app/
+/dist-installer/
+/web/app/dist-tv/
+/web/app/dist-phone/
+/dist-tv-package/

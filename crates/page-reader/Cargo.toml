@@ -1,0 +1,13 @@
+[package]
+name = "mediaverse_page_reader"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+# Reads the text in a photo of a booklet page (lyrics by photo, owner 2026-11-20): PP-OCRv5 text detection and recognition
+# (PaddlePaddle, Apache-2.0) through ONNX Runtime, then plain layout logic that finds the song panels, their titles and stanzas.
+# The models are a separate download (never in the installer). ONNX Runtime is loaded at run time by the Lyric AI code
+# (mediaverse_lyric_engine::models::init), as for the other models. `image` (MIT or Apache-2.0) reads the photos (JPEG and PNG only).
+[dependencies]
+ort = { version = "=2.0.0-rc.10", default-features = false, features = ["load-dynamic", "std"] }
+image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }

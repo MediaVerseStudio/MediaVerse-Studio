@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Reading the music on the phone (Android 13 and newer; older versions use the storage permission). -->
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+    <!-- Finding DLNA TVs and speakers (SSDP is a multicast search). -->
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+    <!-- Album pictures kept as files in the album folders (cover.jpg, folder.jpg). -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    <!-- Playing on with the screen off, with the controls in the notification and on the lock screen. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- Sharing the library with the TV app (off until switched on in Settings): a small server on the home
+         network. Android 17 asks the person before an app may use the local network. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Whether the phone is on Wi-Fi, for keeping music in step with the home Jellyfin server (D177). -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
+
+    <application
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:networkSecurityConfig="@xml/network_security_config"
+        android:theme="@style/Theme.MediaVerse">
+
+        <!-- Android Auto: this app is a media app (the car draws the screens from the library this app offers). -->
+        <meta-data
+            android:name="com.google.android.gms.car.application"
+            android:resource="@xml/automotive_app_desc" />
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode|density"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <service
+            android:name=".PlaybackService"
+            android:exported="true"
+            android:foregroundServiceType="mediaPlayback">
+            <intent-filter>
+                <action android:name="androidx.media3.session.MediaLibraryService" />
+                <action android:name="android.media.browse.MediaBrowserService" />
+            </intent-filter>
+        </service>
+
+        <!-- Album covers for the notification, the lock screen and Android Auto, which read them by address.
+             Read only, and only pictures. -->
+        <provider
+            android:name=".ArtProvider"
+            android:authorities="studio.mediaverse.app.art"
+            android:exported="true"
+            tools:ignore="ExportedContentProvider"
+            xmlns:tools="http://schemas.android.com/tools" />
+            <!-- Keeps the app running while it sends music to a TV or speaker. -->
+        <service android:name=".CastService" android:exported="false" android:foregroundServiceType="mediaPlayback" />
+    </application>
+</manifest>

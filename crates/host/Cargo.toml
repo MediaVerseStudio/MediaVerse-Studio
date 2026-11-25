@@ -1,0 +1,15 @@
+[package]
+name = "mediaverse_host"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+mediaverse_application = { path = "../application" }
+mediaverse_domain = { path = "../domain" }
+mediaverse_library_filesystem = { path = "../adapters/library-filesystem" }
+mediaverse_metadata_tags = { path = "../adapters/metadata-tags" }
+mediaverse_persistence_sqlite = { path = "../adapters/persistence-sqlite" }
+notify = "8.2.1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

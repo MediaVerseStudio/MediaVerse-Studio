@@ -1,0 +1,10 @@
+[package]
+name = "mediaverse_persistence_sqlite"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+mediaverse_application = { path = "../../application" }
+mediaverse_domain = { path = "../../domain" }
+rusqlite = { version = "0.37", features = ["bundled"] }

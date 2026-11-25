@@ -1,0 +1,11 @@
+[package]
+name = "mediaverse_metadata_tags"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+lofty = "0.22.4"
+
+[dev-dependencies]
+mediaverse_ripper = { path = "../../ripper" }

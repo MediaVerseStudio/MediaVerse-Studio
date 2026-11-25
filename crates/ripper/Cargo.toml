@@ -1,0 +1,18 @@
+[package]
+name = "mediaverse_ripper"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+claxon = "=0.4.3"
+flacenc = "=0.5.1"
+mediaverse_accuraterip = { path = "../accuraterip" }
+serde = { version = "1", features = ["derive"] }
+# MD5 of the audio, to check the signature stored in every FLAC file. Already in the build through
+# flacenc (MIT or Apache-2.0).
+md-5 = "0.10"
+nanomp3 = { version = "0.2.0", default-features = false, features = ["std"] }
+
+[dev-dependencies]
+serde_json = "1"

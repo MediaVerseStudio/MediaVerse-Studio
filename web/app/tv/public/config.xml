@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- MediaVerse Studio for TV (D38): Samsung Tizen web app manifest. The package ID (10 letters and digits) must
+     stay the same for updates to install over an earlier version. -->
+<widget xmlns="http://www.w3.org/ns/widgets" xmlns:tizen="http://tizen.org/ns/widgets" id="https://github.com/MediaVerseStudio/MediaVerse-Studio/tv" version="0.9.0" viewmodes="maximized">
+    <tizen:application id="MVStudioTV.MediaVerse" package="MVStudioTV" required_version="6.0"/>
+    <tizen:profile name="tv-samsung"/>
+    <content src="index.html"/>
+    <feature name="http://tizen.org/feature/screen.size.all"/>
+    <icon src="icon.png"/>
+    <name>MediaVerse Studio</name>
+    <author href="https://github.com/MediaVerseStudio/MediaVerse-Studio">MediaVerse Studio</author>
+    <license href="https://www.gnu.org/licenses/gpl-3.0.html">GPL-3.0-or-later</license>
+    <!-- Reaching MediaVerse Studio on the home computer, and the remote's media and number keys. -->
+    <tizen:privilege name="http://tizen.org/privilege/internet"/>
+    <tizen:privilege name="http://tizen.org/privilege/power"/>
+    <tizen:privilege name="http://tizen.org/privilege/tv.inputdevice"/>
+    <!-- The TV's own network address, to look for computers on the same home network. -->
+    <tizen:privilege name="http://developer.samsung.com/privilege/network.public"/>
+    <!-- Reading music from a USB drive plugged into the TV (being tried). -->
+    <tizen:privilege name="http://tizen.org/privilege/filesystem.read"/>
+    <tizen:privilege name="http://tizen.org/privilege/externalstorage"/>
+    <access origin="*" subdomains="true"/>
+    <tizen:setting screen-orientation="landscape" context-menu="disable" background-support="disable" encryption="disable" install-location="auto" hwkey-event="enable"/>
+</widget>

@@ -1,0 +1,12 @@
+[package]
+name = "mediaverse_lyric_ai"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+# Lyric AI (docs/lyric-ai-plan.md): finding the right lyrics for a song, listening to check them, and timing them. This crate holds the
+# pure logic (text preparation, CTC forced alignment, line flags, the identity score); no files, network or models are touched here.
+# Its results are checked against the Python prototype in tools/lyric-sync (tests/golden.rs and the fixtures next to it).
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

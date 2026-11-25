@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'; script-src 'self'">
+<title>MediaVerse Studio mini player</title>
+<style>
+  :root { --accent: #e2793a; }
+  * { box-sizing: border-box; border-radius: 0; }
+  html, body { margin: 0; height: 100%; background: #0b0807; color: #f4ece5; font: 13px "Segoe UI", system-ui, sans-serif; overflow: hidden; user-select: none; }
+  .mini { display: grid; grid-template-columns: 124px 1fr; height: 100%; -webkit-app-region: drag; }
+  .cover { width: 124px; height: 124px; background: #1a1411 center / cover no-repeat; }
+  .body { display: flex; flex-direction: column; justify-content: space-between; padding: 10px 12px 10px 14px; min-width: 0; }
+  .title { font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .artist { color: #c9b7aa; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+  .bar { height: 3px; background: #2c1f18; margin: 6px 0; -webkit-app-region: no-drag; cursor: pointer; }
+  .bar > i { display: block; height: 100%; width: 0; background: var(--accent); }
+  .row { display: flex; align-items: center; gap: 6px; -webkit-app-region: no-drag; }
+  button { background: transparent; color: #f4ece5; border: 0; width: 30px; height: 28px; font: 16px "Segoe UI Symbol", "Segoe UI", sans-serif; cursor: pointer; }
+  button:hover:not(:disabled) { color: var(--accent); }
+  button:disabled { color: #5b4c43; cursor: default; }
+  button.play { color: var(--accent); font-size: 19px; }
+  input[type=range] { flex: 1; min-width: 0; accent-color: var(--accent); height: 18px; }
+  .corner { position: absolute; top: 2px; right: 2px; display: flex; -webkit-app-region: no-drag; }
+  .corner button { width: 22px; height: 22px; font-size: 12px; color: #8a7a6f; }
+  .corner button[aria-pressed=false] { opacity: 0.4; filter: grayscale(1); }
+</style>
+</head>
+<body>
+<div class="mini">
+  <div class="cover" id="cover"></div>
+  <div class="body">
+    <div><div class="title" id="title">Nothing playing</div><div class="artist" id="artist"></div></div>
+    <div class="bar" id="bar" title="Move within the song"><i id="fill"></i></div>
+    <div class="row">
+      <button id="previous" aria-label="Previous song" title="Previous song">&#x23EE;</button>
+      <button id="toggle" class="play" aria-label="Play" title="Play">&#x25B6;</button>
+      <button id="next" aria-label="Next song" title="Next song">&#x23ED;</button>
+      <input id="volume" type="range" min="0" max="1" step="0.02" aria-label="Volume">
+    </div>
+  </div>
+</div>
+<div class="corner"><button id="pin" aria-pressed="true" aria-label="Keep on top of other windows" title="Keep on top of other windows">&#x1F4CC;</button><button id="main" aria-label="Back to the full window" title="Back to the full window">&#x2922;</button></div>
+<script src="mini.js"></script>
+</body>
+</html>

@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080, user-scalable=no" />
+    <title>MediaVerse Studio</title>
+    <link rel="stylesheet" href="./style.css" />
+    <!-- Samsung's TV APIs (the TV's own network address, for finding computers); missing outside a TV. -->
+    <script src="$WEBAPIS/webapis/webapis.js"></script>
+  </head>
+  <body>
+    <!-- A silent, dark, looping clip played behind everything while music plays on Now Playing: the TV keeps its
+         screen saver away while a video plays (see keepAwake in main.ts). -->
+    <video id="keep-awake" muted loop playsinline preload="none" aria-hidden="true"></video>
+    <!-- Samsung's own player (AVPlay) draws its clip here, under the page: on Samsung TVs this is what holds off
+         the OLED panel's still-picture screen saver (the <video> above is the fallback). -->
+    <object id="av-keep-awake" type="application/avplayer" aria-hidden="true"></object>
+    <div id="backdrop" aria-hidden="true"><img id="backdrop-image" alt="" /><canvas id="backdrop-soft" width="32" height="18"></canvas></div>
+
+    <section id="connect" class="screen" hidden>
+      <div id="sources" class="connect-box">
+        <p class="eyebrow">MEDIAVERSE STUDIO</p>
+        <h1>Where is your music?</h1>
+        <div id="source-list" class="source-list"></div>
+        <p id="sources-status" class="status" role="status"></p>
+        <div class="button-row">
+          <button id="sources-again" class="f" type="button">Search again</button>
+          <button id="sources-jellyfin" class="f" type="button">Jellyfin server</button>
+          <button id="sources-usb" class="f" type="button">USB drive</button>
+          <button id="sources-manual" class="f" type="button">Type an address</button>
+        </div>
+        <p class="hint">Computers appear here when MediaVerse Studio is running on them with sharing switched on
+          (<strong>Settings &gt; TV</strong>). Jellyfin servers and USB drives with music appear too; or choose them
+          below.</p>
+      </div>
+
+      <div id="manual" class="connect-box" hidden>
+        <p class="eyebrow">MEDIAVERSE STUDIO</p>
+        <h1 id="manual-title">Type the computer's address</h1>
+        <p class="hint" id="manual-hint">It is shown in MediaVerse Studio under <strong>Settings &gt; TV</strong>. Use the number
+          buttons (press <strong>123</strong> on the remote) or the keypad below.</p>
+        <div class="fields"><div class="field is-editing"><span class="field-label">Computer address</span><span class="field-value" id="host-value"></span></div></div>
+        <div id="host-keypad" class="keypad"></div>
+        <button id="manual-go" class="primary f" type="button">Find</button>
+        <p id="manual-status" class="status" role="status"></p>
+      </div>
+
+      <div id="pair" class="connect-box" hidden>
+        <p class="eyebrow">MEDIAVERSE STUDIO</p>
+        <h1 id="pair-title">Pair with the computer</h1>
+        <p class="hint" id="pair-hint"></p>
+        <div class="fields"><div class="field is-editing"><span class="field-label">Code</span><span class="field-value pair-value" id="pair-value"></span></div></div>
+        <div id="pair-keypad" class="keypad"></div>
+        <p id="pair-status" class="status" role="status"></p>
+      </div>
+
+      <div id="jellyfin" class="connect-box" hidden>
+        <p class="eyebrow">MEDIAVERSE STUDIO</p>
+        <h1 id="jf-title">Sign in to Jellyfin</h1>
+        <p class="hint">On your phone or computer, open Jellyfin, go to your profile (the person icon) and choose
+          <strong>Quick Connect</strong>. Enter this code there. You only do this once.</p>
+        <div class="fields"><div class="field is-editing"><span class="field-label">Code</span><span class="field-value pair-value" id="jf-code"></span></div></div>
+        <p id="jf-status" class="status" role="status"></p>
+        <div class="button-row"><button id="jf-cancel" class="f" type="button">Back</button></div>
+      </div>
+    </section>
+
+    <!-- Who's listening? (D45): asked when the app starts; each person has their own favorites on this TV. -->
+    <section id="who" class="screen" hidden>
+      <div class="who-box">
+        <h1 id="who-title">Who's listening?</h1>
+        <div id="who-list" class="who-list"></div>
+        <div class="button-row who-actions"><button id="who-edit" class="f" type="button">Edit people</button><button id="who-skip" class="f" type="button" hidden>Continue without a name</button></div>
+        <p id="who-hint" class="hint"></p>
+      </div>
+      <div id="who-name" class="modal" hidden>
+        <div class="modal-box wide">
+          <h2 id="who-name-title">Add a person</h2>
+          <div id="who-name-text" class="search-text"></div>
+          <div id="who-name-keys" class="search-keys"></div>
+          <p id="who-name-status" class="status"></p>
+        </div>
+      </div>
+      <div id="who-person" class="modal" hidden>
+        <div class="modal-box">
+          <h2 id="who-person-title"></h2>
+          <div id="who-person-buttons" class="modal-buttons"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="browse" class="screen" hidden>
+      <header class="tabs">
+        <span class="brand">MediaVerse</span>
+<!-- Owner's order (2026-11-06): Now playing, the library (artists, albums, genres and songs chosen inside it), search
+     beside it, favorites, playlists (the queue is there too), Settings. Fewer tabs, so the listener's name fits. -->
+        <button class="tab f" type="button" data-tab="playing">Now playing</button>
+        <button class="tab f" type="button" data-tab="library">Library</button>
+        <button class="tab f tab-icon" type="button" data-tab="search" aria-label="Search" title="Search"></button>
+        <button class="tab f" type="button" data-tab="favorites">Favorites</button>
+        <button class="tab f" type="button" data-tab="playlists">Playlists</button>
+        <button class="tab f" type="button" data-tab="settings">Settings</button>
+        <button class="tab f listener" type="button" data-tab="who" id="listener-tab" hidden></button>
+      </header>
+      <div id="view" class="view"></div>
+      <!-- OK on a song while music plays: play it now (a new queue), next, or at the end of the queue. -->
+      <div id="song-menu" class="modal" hidden>
+        <div class="modal-box">
+          <h2 id="song-menu-title"></h2>
+          <p id="song-menu-hint" class="hint"></p>
+          <div id="song-menu-buttons" class="modal-buttons"></div>
+        </div>
+      </div>
+      <!-- A to Z down the right of the long lists (Artists, Albums, Songs, Genres): right to reach it, OK to jump. -->
+      <nav id="letters" class="letters" aria-label="Jump to a letter" hidden></nav>
+      <!-- Back, as a narrow strip down the left (owner, 2026-11-06): press left from anywhere on a page to reach it. -->
+      <button id="back-strip" class="back-strip f" type="button" aria-label="Back" title="Back" hidden>‹</button>
+      <footer id="mini" class="mini" hidden>
+        <img id="mini-cover" alt="" />
+        <div class="mini-text"><span id="mini-title"></span><span id="mini-artist"></span></div>
+        <div class="mini-progress"><div id="mini-bar"></div></div>
+      </footer>
+    </section>
+
+    <section id="playing" class="screen" hidden>
+      <!-- A wall of album covers behind everything; now and then one tile slowly turns over to another album. -->
+      <div id="np-wall" class="np-wall" aria-hidden="true"></div>
+      <!-- With lyrics showing, a glow rising from the bottom of the screen answers the music instead of the
+           visualizer, leaving the lyrics the whole middle. It pulses and sways: the TV's own screen saver starts
+           on a still picture. -->
+      <div id="np-glow" class="np-glow" aria-hidden="true"></div>
+      <div id="np-drift" class="np">
+        <!-- Cover, visualizer and song details; the cover and the details change sides with each new song (OLED
+             care). With lyrics, a small cover in a top corner, the details in two lines beside it (the title
+             nearest the lyrics), and the lyrics below. -->
+        <div id="np-stage" class="np-stage">
+          <div class="np-art"><img id="np-cover" class="np-cover" alt="" /></div>
+          <div class="np-middle">
+            <canvas id="np-vis" class="np-vis" width="760" height="560"></canvas>
+            <div id="np-lyrics" class="np-lyrics"></div>
+          </div>
+          <div class="np-info">
+            <h1 id="np-title"></h1>
+            <div class="np-sub">
+              <p id="np-artist"></p>
+              <p id="np-album"></p>
+              <p id="np-year"></p>
+            </div>
+          </div>
+        </div>
+        <div class="np-bottom">
+          <div class="np-time"><span id="np-elapsed"></span><div class="np-progress"><div id="np-bar"></div></div><span id="np-duration"></span></div>
+          <div id="np-controls" class="np-controls">
+            <!-- As in Media Player: shuffle, previous, play, next, repeat; then favourite, flag and lyrics. Icons only
+                 (drawn by main.ts); the focused button shows its name underneath. -->
+            <button class="f" type="button" data-action="shuffle" id="np-shuffle" aria-label="Shuffle"></button>
+            <button class="f" type="button" data-action="previous" aria-label="Previous"></button>
+            <button class="f np-main" type="button" data-action="playPause" id="np-play" aria-label="Play or pause"></button>
+            <button class="f" type="button" data-action="next" aria-label="Next"></button>
+            <button class="f" type="button" data-action="repeat" id="np-repeat" aria-label="Repeat: off"></button>
+            <span class="np-gap" aria-hidden="true"></span>
+            <button class="f" type="button" data-action="favorite" id="np-favorite" aria-label="Favorite"></button>
+            <button class="f" type="button" data-action="flag" id="np-flag" aria-label="Flag a problem"></button>
+            <button class="f" type="button" data-action="lyrics" id="np-lyrics-toggle" aria-label="Lyrics"></button>
+          </div>
+          <p id="np-next" class="np-next"></p>
+        </div>
+      </div>
+      <!-- Flag a problem with the playing song: what is wrong, remembered with the place in the song. -->
+      <div id="flag-panel" class="modal" hidden>
+        <div class="modal-box">
+          <h2>What is wrong with this song?</h2>
+          <p id="flag-where" class="hint"></p>
+          <div id="flag-reasons" class="modal-buttons"></div>
+        </div>
+      </div>
+    </section>
+
+    <div id="toast" class="toast" role="status" hidden></div>
+    <div id="dim" class="dim" hidden></div>
+    <audio id="audio" preload="auto"></audio>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

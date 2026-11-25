@@ -1,0 +1,191 @@
+# This manifest is intentionally not approval to build or distribute a native component.
+# Fill every UNVERIFIED value, review all bundled licenses, and set approved_for_build = true
+# only after the project owner completes the documented review.
+
+[[source]]
+name = "CDex / CDRip"
+role = "Windows CD-drive access and PCM extraction"
+upstream_url = "https://github.com/elha/CDex"
+revision = "d7d5509e7071cab6a27c89720cd0b8ee1cc6f0ce"
+source_archive = "cdex-d7d5509e7071cab6a27c89720cd0b8ee1cc6f0ce.tar.gz"
+sha256 = "CEF0236300DF1386EB5756B4B85E3B820C6332AE5119FBA6D81E97BA8CD34CB2"
+license = "CDRip wrapper: GPL-3.0-or-later; compiled paranoia sources: marked GPLv2, compatibility unresolved"
+integration = "Windows-only narrow adapter"
+blocker = "CDRip.vcxproj compiles bundled paranoia sources whose headers state GNU Public License 2 applies. Do not build or distribute under GPL-3.0-only until their exact license terms are resolved or replaced."
+approved_for_build = false
+
+[[source]]
+name = "libcdio"
+role = "Windows optical-drive discovery, media state, TOC, and sector access"
+upstream_url = "https://github.com/libcdio/libcdio"
+revision = "68ea374f83d5e63122168e4e182b15ba10e0d2eb"
+source_archive = "libcdio-68ea374f83d5e63122168e4e182b15ba10e0d2eb.tar.gz"
+sha256 = "60917B72F423DAD644753B1F165FF1195CCED31A8D1F3F091E428003507BCFB6"
+license = "GPL-3.0-or-later (COPYING is GPLv3; pinned source headers permit version 3 or later)"
+integration = "Windows-only narrow adapter, compiled separately for x86_64-pc-windows-gnu"
+blocker = "The current desktop target is x86_64-pc-windows-msvc. The planned proof of concept requires an isolated MinGW-w64 build and real optical-drive validation before application integration."
+approved_for_build = true
+license_review = "2026-10-31: headers of 32 inspected lib files carry GPL-3.0-or-later notices; COPYING is GPLv3. Approved by project owner."
+
+[[source]]
+name = "libcdio-paranoia"
+role = "Secure CDDA extraction, jitter handling, and read-error reporting"
+upstream_url = "https://github.com/libcdio/libcdio-paranoia"
+revision = "384f4dac7e211cce67a14f3df53fc596965b6c94"
+source_archive = "libcdio-paranoia-384f4dac7e211cce67a14f3df53fc596965b6c94.tar.gz"
+sha256 = "14841641C668EEDB84A7401717C77EEDA00BF6973CD3DB68FABDFA4AD030110A"
+license = "GPL-3.0-or-later (COPYING is GPLv3; pinned source headers permit version 3 or later)"
+integration = "Windows-only narrow adapter over libcdio, compiled separately for x86_64-pc-windows-gnu"
+blocker = "Requires libcdio >= 2.0 and a source-built MinGW-w64 proof of drive enumeration, TOC reads, cancellation-safe PCM reads, and damaged-disc behavior. Do not link it into the current MSVC desktop build."
+approved_for_build = true
+license_review = "2026-10-31: 21 source files carry GPL-3.0-or-later notices, but 6 (cddap_interface.c, common_interface.h, low_interface.h, p_block.c, toc.h, version.h) carry only copyright lines crediting Monty/Xiph 1998 and Rocky Bernstein with no license text. Upstream review 2026-10-31: see docs/decision-log.md D7. Approved by project owner 2026-10-31."
+
+[[source]]
+name = "libcdio-sys"
+role = "Rust FFI bindings for a later isolated libcdio proof of concept"
+upstream_url = "https://crates.io/crates/libcdio-sys"
+revision = "3.0.0+2.4.0p2.0.2"
+source_archive = "libcdio-sys-3.0.0+2.4.0p2.0.2.crate"
+sha256 = "3341BD0C18A38E2A02FE6645B375F007E8023672A59B0C50554954E97C46DA3B"
+license = "GPL-3.0-or-later"
+integration = "Potential Rust FFI boundary with only the cdda and paranoia features enabled"
+blocker = "Its vendored cdda/paranoia build intentionally rejects MSVC targets. The native GNU compilation succeeds, but version 3.0.0's bindgen build step omits MinGW standard-header roots and cannot generate GNU-target bindings. Do not enable secure extraction until an upstream-compatible binding fix is pinned and validated."
+approved_for_build = false
+
+[[source]]
+name = "LAME 4.0"
+role = "MP3 encoding from verified PCM"
+upstream_url = "https://sourceforge.net/projects/lame/files/lame/4.0/"
+revision = "4.0"
+source_archive = "lame-4.0.tar.gz"
+sha256 = "3DF5124D5AD3A98312FFD7BA6A9B36230E4F8A3E66D3CE0F425E336C32D216EB"
+license = "GNU Library General Public License, Version 2 or later (archive COPYING and lame --version)"
+integration = "Validated standalone subprocess only; no DLL linkage"
+patches = ["third_party/patches/lame-4.0-disable-optional-mpg123-prelink.patch"]
+build = "Visual Studio Build Tools 18.11.1; MSVC 19.51.36260; Release|x64; PlatformToolset=v145"
+artifact = "third_party/build/lame-4.0/x64/Release/lame.exe"
+artifact_sha256 = "44B59369F12C5A03C2B0E0462E11CFCF66575FDB26874364F667413385684445"
+rebuild_note = "2026-10-31: rebuilt from the same verified archive with tools/build-lame-4.0.ps1 in the electron-spike clone; lame.exe reports LAME 64bits version 4.0 and has SHA-256 55DBDF4F02E9154125140215FCD697517F93DD8A60366352E1FBC643976505C4. MSVC builds embed timestamps and paths, so the executable hash is not expected to be reproducible; the verified source archive hash above is the fixed reference."
+approved_for_build = true
+
+
+
+
+
+[[source]]
+name = "flacenc (Rust crate)"
+role = "FLAC encoding of verified PCM (recommended)"
+upstream_url = "https://crates.io/crates/flacenc"
+revision = "0.5.1 (pinned with =0.5.1 in crates/ripper/Cargo.toml)"
+license = "Apache-2.0 (per crates.io metadata; confirm the LICENSE file in the pinned source). Compatible with GPL-3.0-only when combined."
+integration = "Pure Rust library dependency of crates/ripper or a new encoder crate; no native build"
+sha256 = "74c892c2b5fa08f967e8b5ad29121570b4762202f2402033ce08479ec65eccd0 (Cargo.lock checksum)"
+license_review = "2026-10-31: Cargo.toml and the LICENSE file in the source both state Apache-2.0. Its transitive dependencies (built, crc, md-5, heapless, hash32, seq-macro, crossbeam-channel, and others) are all MIT, Apache-2.0, Unlicense or Unicode-3.0. Approved by project owner."
+approved_for_build = true
+
+[[source]]
+name = "claxon (Rust crate)"
+role = "FLAC decoding: used to prove each encoded file decodes back to the source samples, and (D186) to play FLAC at any sample rate and depth through the exclusive (WASAPI) sound output; pinned with =0.4.3 in apps/sidecar/Cargo.toml too"
+upstream_url = "https://crates.io/crates/claxon"
+revision = "0.4.3 (pinned with =0.4.3 in crates/ripper/Cargo.toml; last release 2020-08, widely used)"
+license = "Apache-2.0 (per crates.io metadata; confirm the LICENSE file in the pinned source). Compatible with GPL-3.0-only when combined."
+integration = "Pure Rust library dependency used for verification"
+sha256 = "4bfbf56724aa9eca8afa4fcfadeb479e722935bb2a0900c2d37e0cc477af0688 (Cargo.lock checksum)"
+license_review = "2026-10-31: Cargo.toml and the license file in the source both state Apache-2.0; no dependencies beyond std. Approved by project owner."
+approved_for_build = true
+
+[[source]]
+name = "native-tls and schannel (Rust crates, via ureq's native-tls feature)"
+role = "Secure (HTTPS) connections for metadata services, using the operating system's TLS stack"
+upstream_url = "https://crates.io/crates/native-tls"
+revision = "native-tls 0.2.18, schannel 0.1.30 (plus windows-sys / windows-link, Microsoft's Windows bindings); pinned by Cargo.lock"
+sha256 = "native-tls 465500e14ea162429d264d44189adc38b199b62b1c21eea9f69e4b73cb03bbf2; schannel 9cb23c424d8ee841bb4d813677ca237e2a610067d594fec130f87d6093495ab5 (Cargo.lock checksums)"
+license = "native-tls: MIT OR Apache-2.0; schannel: MIT; windows-sys, windows-link: MIT OR Apache-2.0 (per crates.io metadata). All compatible with GPL-3.0-only."
+license_review = "2026-10-31: license metadata checked in a scratch resolution of the dependency tree; no cryptography library is bundled, because Windows' own SChannel does the TLS. Approved by project owner 2026-10-31."
+integration = "Dependency of apps/sidecar only (ureq with the native-tls feature). Windows only; Android needs its own TLS plan."
+approved_for_build = true
+
+[[source]]
+name = "md-5 (Rust crate)"
+role = "MD5 of the audio, to check the signature stored in every FLAC file"
+upstream_url = "https://crates.io/crates/md-5"
+revision = "0.10.6 (pinned by Cargo.lock; already part of the approved flacenc dependency tree, now also used directly by crates/ripper)"
+license = "MIT OR Apache-2.0 (per crates.io metadata)"
+license_review = "2026-10-31: already reviewed as a transitive dependency of the approved flacenc; used directly for the FLAC audio signature. Reported to the owner."
+integration = "Pure Rust dependency of crates/ripper"
+approved_for_build = true
+
+[[source]]
+name = "flac 1.5.0 command-line tools (Xiph), TEST ONLY"
+role = "Reference decoder to cross-check our FLAC files (flac --test --warnings-as-errors). Never shipped, linked or bundled."
+upstream_url = "https://ftp.osuosl.org/pub/xiph/releases/flac/flac-1.5.0-win.zip"
+revision = "1.5.0 (GitHub release tag 1.5.0 of xiph/flac)"
+source_archive = "flac-1.5.0-win.zip"
+sha256 = "53f1500f0d6e7c61379d7fee50d4a9f7f504c650009506d9ba015530d76c0dde"
+license = "libFLAC: BSD-3-Clause; the flac and metaflac command-line programs: GPL (per the Xiph FLAC project). Used only as a separate test program on the developer's machine, so it does not affect this project's licence."
+license_review = "2026-10-31: owner approved the test-only download. Verified three ways (pinned hash, Xiph's SHA256SUMS.txt, identical file from GitHub's release). Not committed: it is fetched by tools/fetch-flac-reference.ps1 into third_party/build (ignored by git)."
+integration = "Test only: crates/ripper/tests/reference_decoder.rs runs it if present."
+approved_for_build = true
+
+[[source]]
+name = "lofty (Rust crate)"
+role = "Tag reading and editing for the music library (crates/adapters/metadata-tags, shipped in the sidecar), and an independent reader in apps/sidecar tests that cross-checks our own ID3 writer. Never used to write FLAC masters (ADR 0005)."
+upstream_url = "https://crates.io/crates/lofty"
+revision = "0.22.4 (pinned by Cargo.lock, checksum ca260c51a9c71f823fbfd2e6fbc8eb2ee09834b98c00763d877ca8bfa85cde3e)"
+license = "MIT OR Apache-2.0 (per crates.io metadata)"
+license_review = "2026-10-31: owner approved the independent-reader plan. 2026-11-02: corrected; it is also a runtime dependency of the library tag adapter (inherited from the Tauri app), so it is linked into the shipped sidecar. Licence unchanged. Re-approved by project owner 2026-11-02 for runtime use (D31)."
+integration = "runtime dependency of crates/adapters/metadata-tags (linked into the sidecar); dev-dependency of apps/sidecar tests"
+approved_for_build = true
+
+[[source]]
+name = "nanomp3 and nanomp3-core (Rust crates)"
+role = "Independent MP3 decoder, used to decode each finished MP3 copy and compare it with the verified source"
+upstream_url = "https://crates.io/crates/nanomp3"
+revision = "0.2.0 (pinned by Cargo.lock); safe Rust port of minimp3, #![forbid(unsafe_code)]"
+license = "MIT OR Apache-2.0 (per crates.io metadata)"
+license_review = "2026-10-31: owner approved. Pure Rust, no unsafe code, no native build step."
+integration = "Dependency of crates/ripper (mp3::decode_check)"
+approved_for_build = true
+
+[[source]]
+name = "rusqlite and libsqlite3-sys (Rust crates) with bundled SQLite"
+role = "The library database (crates/adapters/persistence-sqlite) and the defect scan results (apps/sidecar, defect-results.sqlite)"
+upstream_url = "https://github.com/rusqlite/rusqlite"
+revision = "rusqlite 0.37.0, libsqlite3-sys 0.35.0 (pinned by Cargo.lock), feature \"bundled\" (SQLite compiled in from the source vendored in libsqlite3-sys)"
+license = "rusqlite and libsqlite3-sys: MIT (README: \"Rusqlite and libsqlite3-sys are available under the MIT license\"); SQLite itself: public domain (sqlite.org/copyright.html)"
+license_review = "2026-11-03: in the build since the Tauri days but never recorded here. Checked online (rusqlite README): MIT, bundled SQLite public domain; both compatible with GPL-3.0-only. Owner approved; no conflict found (D35)."
+integration = "Dependency of crates/adapters/persistence-sqlite and apps/sidecar; linked into the sidecar"
+approved_for_build = true
+
+[[source]]
+name = "rusty-chromaprint (Rust crate), for AcoustID fingerprints"
+role = "Pure-Rust Chromaprint fingerprints of ripped tracks (and, later, library songs) for AcoustID lookups (apps/sidecar/src/fingerprint.rs, audio_check.rs)"
+upstream_url = "https://github.com/darksv/rusty-chromaprint"
+revision = "0.3.0 (crates.io, 2024-10); dependencies rubato 0.16 and rustfft 6.2 (both MIT OR Apache-2.0)"
+license = "MIT (declared in the crate's Cargo.toml; the repository has no LICENSE file, so notices quote the crate metadata). It is described as a port of Chromaprint, whose own code is MIT (Copyright Lukas Lalinsky); Chromaprint's LGPL-2.1 part is bundled FFmpeg code, which this port replaces with rubato and rustfft."
+license_review = "2026-11-03: checked online (crate metadata, its README, Chromaprint's LICENSE.md). No conflict with GPL-3.0-only: the ported code is MIT, and even LGPL-2.1 code could be used under GPL terms. Owner approved (D35). 2026-11-16: added to the build (pinned =0.3.0, with rubato 0.16.2 and rustfft 6.4.1 from Cargo.lock) and tested: fingerprints made by this crate (preset test2, the default of AcoustID's fpcalc) of two real songs decoded from MP3 were recognised by AcoustID's live service with scores 0.98 and 0.97 (D113)."
+integration = "Dependency of apps/sidecar; linked into the sidecar. Fingerprints the first two minutes of each track."
+approved_for_build = true
+
+[[source]]
+name = "libiconv (MSYS2 UCRT64 static library linked into mediaverse_cd_helper.exe)"
+role = "Character-set conversion used by libcdio; linked statically from the MSYS2 toolchain (apps/cd-helper/build.rs)"
+upstream_url = "https://repo.msys2.org/mingw/sources/mingw-w64-libiconv-1.19-1.src.tar.zst"
+revision = "1.19-1 (MSYS2 package mingw-w64-ucrt-x86_64-libiconv 1.19-1, the version installed in C:\\msys64)"
+source_archive = "mingw-w64-libiconv-1.19-1.src.tar.zst (MSYS2 source package: GNU libiconv-1.19.tar.gz with its .sig, MSYS2's PKGBUILD and three patches)"
+sha256 = "74428280C17094DA5B702C29B2E1A0ABAE59556EA5DFDD65705CC8CCC1E000FB"
+license = "LGPL-2.1-or-later for the library (COPYING.LIB); the iconv program, not shipped, is GPL-3.0-or-later"
+release_material = "Source package above (shipped in the source bundle, tools/make-source-bundle.ps1), COPYING.LIB in the licences folder. Relinking: the complete source of mediaverse_cd_helper.exe is in the same bundle."
+license_review = "2026-11-07: source package downloaded from MSYS2 for release compliance only (the library was already linked since D7). Owner approved preparing the licence pack and source bundle for the beta."
+approved_for_build = true
+
+[[source]]
+name = "rcedit (build-time tool, not shipped)"
+role = "Sets the icon and version text inside the renamed electron.exe and the setup program (tools/package-windows.ps1, tools/make-installer.ps1)"
+upstream_url = "https://github.com/electron/rcedit/releases/download/v2.0.0/rcedit-x64.exe"
+revision = "v2.0.0 (released 2023-11-16, the latest release on 2026-11-07)"
+sha256 = "3E7801DB1A5EDBEC91B49A24A094AAD776CB4515488EA5A4CA2289C400EADE2A"
+license = "MIT (LICENSE at the v2.0.0 tag: Copyright (c) 2013 GitHub Inc.)"
+integration = "Run at build time only by tools/fetch-rcedit.ps1, which refuses any other hash. Nothing of rcedit is in the program. The release binary is not Authenticode-signed (upstream ships it unsigned); its size matches GitHub's release listing."
+license_review = "2026-11-07: owner approved adding rcedit (D89)."
+approved_for_build = true

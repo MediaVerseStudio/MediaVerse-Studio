@@ -1,0 +1,1819 @@
+:root {
+  color: #f4e8df;
+  background: #17110e;
+  font-family: Inter, "Segoe UI", sans-serif;
+}
+
+body {
+  margin: 0;
+}
+
+main {
+  box-sizing: border-box;
+  display: grid;
+  gap: 2rem;
+  margin: 0 auto;
+  max-width: 72rem;
+  min-height: 100vh;
+  padding: 4rem 1.5rem;
+}
+
+h1,
+h2,
+p {
+  margin-top: 0;
+}
+
+.eyebrow {
+  color: #f0a166;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+
+.app-header {
+  align-items: center;
+  display: grid;
+  gap: 1.25rem;
+  grid-template-columns: auto 1fr auto;
+}
+
+.brand-logo {
+  background: #070808;
+  border: 1px solid #5b3b2e;
+  border-radius: 0.75rem;
+  height: 7rem;
+  object-fit: contain;
+  width: 10rem;
+}
+
+nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.nav-button {
+  background: transparent;
+  border: 1px solid #805542;
+  color: #f4e8df;
+}
+
+.nav-button.is-active,
+.nav-button:hover,
+.nav-button:focus-visible {
+  background: #e88647;
+  border-color: #e88647;
+  color: #1a100b;
+}
+
+section {
+  background: #241813;
+  border: 1px solid #5b3b2e;
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+}
+
+form {
+  display: grid;
+  gap: 1rem;
+}
+
+label {
+  display: grid;
+  gap: 0.5rem;
+  font-weight: 600;
+}
+
+.tag-choice {
+  display: grid;
+  gap: 0.5rem;
+}
+
+input,
+button {
+  border-radius: 0.4rem;
+  font: inherit;
+  padding: 0.65rem 0.75rem;
+}
+
+input {
+  border: 1px solid #805542;
+}
+
+.choice-input {
+  display: grid;
+  grid-template-columns: 1fr auto;
+}
+
+.choice-input input {
+  border-bottom-right-radius: 0;
+  border-top-right-radius: 0;
+}
+
+.choice-input button {
+  align-self: stretch;
+  border-bottom-left-radius: 0;
+  border-top-left-radius: 0;
+  font-size: 1.1rem;
+  justify-self: stretch;
+  min-width: 2.75rem;
+  padding: 0.25rem 0.6rem;
+}
+
+.choice-menu {
+  background: #17110e;
+  border: 1px solid #805542;
+  border-radius: 0.4rem;
+  display: grid;
+  max-height: 10rem;
+  overflow-y: auto;
+}
+
+.choice-menu[hidden] {
+  display: none;
+}
+
+.choice-menu button {
+  background: transparent;
+  border-radius: 0;
+  color: #f4e8df;
+  font-weight: 500;
+  justify-self: stretch;
+  text-align: left;
+}
+
+.choice-menu button:hover,
+.choice-menu button:focus-visible {
+  background: #5b3b2e;
+}
+
+button {
+  background: #e88647;
+  border: 0;
+  color: #1a100b;
+  cursor: pointer;
+  font-weight: 700;
+  justify-self: start;
+}
+
+.page-heading {
+  align-items: baseline;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.page-heading > p {
+  color: #d3b9a9;
+}
+
+.artist-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+}
+
+.artist-card {
+  align-items: start;
+  background: #17110e;
+  border: 1px solid #5b3b2e;
+  color: #f4e8df;
+  display: grid;
+  gap: 0.65rem;
+  justify-self: stretch;
+  text-align: left;
+}
+
+.artist-card:hover,
+.artist-card:focus-visible {
+  border-color: #f0a166;
+  transform: translateY(-0.15rem);
+}
+
+.artist-card > span:last-child {
+  color: #d3b9a9;
+  font-size: 0.875rem;
+}
+
+.artist-artwork {
+  align-items: center;
+  background: linear-gradient(135deg, #c55d27, #6e9790);
+  border-radius: 0.45rem;
+  color: #10131d;
+  display: flex;
+  font-size: 2.5rem;
+  font-weight: 800;
+  height: 7rem;
+  justify-content: center;
+  width: 100%;
+}
+
+.back-button {
+  background: transparent;
+  border: 1px solid #805542;
+  color: #f4e8df;
+  margin-bottom: 1.5rem;
+}
+
+.album-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.album-card {
+  background: #17110e;
+  border: 1px solid #5b3b2e;
+  border-radius: 0.5rem;
+  padding: 1rem;
+}
+
+.album-card h3 {
+  margin: 0;
+}
+
+.album-card > p {
+  color: #d3b9a9;
+  margin: 0.3rem 0 1rem;
+}
+
+ul {
+  display: grid;
+  gap: 0.75rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+li {
+  display: grid;
+  gap: 0.2rem;
+  border-bottom: 1px solid #5b3b2e;
+  padding-bottom: 0.75rem;
+}
+
+li span {
+  color: #d3b9a9;
+  font-size: 0.875rem;
+  overflow-wrap: anywhere;
+}
+
+li .suggestion {
+  color: #ffc078;
+}
+
+dialog {
+  background: #241813;
+  border: 1px solid #805542;
+  border-radius: 0.75rem;
+  color: #f4e8df;
+  max-width: 38rem;
+}
+
+dialog form {
+  display: grid;
+  gap: 0.75rem;
+}
+
+#tag-editor-path {
+  color: #d3b9a9;
+  overflow-wrap: anywhere;
+}
+
+.dialog-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+}
+
+@media (max-width: 48rem) {
+  main {
+    padding: 1.5rem 1rem;
+  }
+
+  .app-header {
+    grid-template-columns: auto 1fr;
+  }
+
+  .app-header nav {
+    grid-column: 1 / -1;
+  }
+}
+
+/* Drive setup page */
+.drive-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.drive-card {
+  background: #17110e;
+  border: 1px solid #5b3b2e;
+  border-radius: 0.75rem;
+  display: grid;
+  gap: 0.75rem;
+  padding: 1.25rem;
+}
+
+.drive-card h3 {
+  margin: 0;
+}
+
+.drive-meta,
+.drive-hint {
+  color: #d3b9a9;
+  font-size: 0.875rem;
+  margin: 0;
+}
+
+.drive-error {
+  color: #ffb4a2;
+  margin: 0;
+}
+
+.drive-facts {
+  display: grid;
+  gap: 0.35rem 1.25rem;
+  grid-template-columns: max-content 1fr;
+  margin: 0;
+}
+
+.drive-facts dt {
+  color: #d3b9a9;
+  font-weight: 600;
+}
+
+.drive-facts dd {
+  margin: 0;
+}
+
+.drive-progress {
+  background: #17110e;
+  border: 1px solid #805542;
+  border-radius: 0.75rem;
+  display: grid;
+  gap: 0.75rem;
+  padding: 1.25rem;
+}
+
+.drive-progress p {
+  margin: 0;
+}
+
+.drive-progress progress {
+  accent-color: #e88647;
+  height: 1.1rem;
+  width: 100%;
+}
+
+.drive-result {
+  background: #17110e;
+  border: 1px solid #805542;
+  border-radius: 0.75rem;
+  padding: 1.25rem;
+}
+
+.drive-result h3 {
+  margin-top: 0;
+}
+
+.drive-result :last-child {
+  margin-bottom: 0;
+}
+
+.result-ok {
+  color: #b5e8a4;
+}
+
+.result-warning {
+  color: #ffd29a;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+button:focus-visible,
+.nav-button:focus-visible {
+  outline: 2px solid #f4e8df;
+  outline-offset: 2px;
+}
+
+@media (max-width: 40rem) {
+  .drive-facts {
+    grid-template-columns: 1fr;
+  }
+
+  .drive-facts dd {
+    margin-bottom: 0.5rem;
+  }
+}
+
+[hidden] {
+  display: none !important;
+}
+
+/* Settings page */
+button.secondary {
+  background: transparent;
+  border: 1px solid #805542;
+  color: #f4e8df;
+}
+
+button.secondary:hover,
+button.secondary:focus-visible {
+  background: #5b3b2e;
+}
+
+.settings-group {
+  background: #17110e;
+  border: 1px solid #5b3b2e;
+  border-radius: 0.75rem;
+  display: grid;
+  gap: 0.9rem;
+  margin: 0 0 1.25rem;
+  padding: 1.25rem;
+}
+
+.settings-group > legend {
+  color: #f0a166;
+  font-size: 1.05rem;
+  font-weight: 700;
+  padding: 0 0.5rem;
+}
+
+.group-intro,
+.field-hint {
+  color: #d3b9a9;
+  font-size: 0.875rem;
+  margin: 0;
+}
+
+.field {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.field label,
+.field-label {
+  font-weight: 600;
+}
+
+.field input[type="text"],
+.field input[type="number"],
+.field input[type="password"],
+.field select {
+  background: #241813;
+  border: 1px solid #805542;
+  border-radius: 0.4rem;
+  box-sizing: border-box;
+  color: #f4e8df;
+  font: inherit;
+  max-width: 34rem;
+  padding: 0.55rem 0.7rem;
+  width: 100%;
+}
+
+label.check {
+  align-items: center;
+  display: flex;
+  font-weight: 600;
+  gap: 0.6rem;
+}
+
+label.check input {
+  height: 1.1rem;
+  width: 1.1rem;
+}
+
+.server-card {
+  border: 1px solid #5b3b2e;
+  border-radius: 0.6rem;
+  display: grid;
+  gap: 0.8rem;
+  padding: 1rem;
+}
+
+.server-card h4 {
+  margin: 0;
+}
+
+.secret-status {
+  color: #b5e8a4;
+}
+
+.secret-row {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.secret-row input {
+  flex: 1 1 14rem;
+  max-width: 24rem;
+}
+
+.settings-problems,
+.setup-needed {
+  background: #2a1d12;
+  border: 1px solid #c98a4b;
+  border-radius: 0.6rem;
+  margin: 0 0 1.25rem;
+  padding: 0.9rem 1.1rem;
+}
+
+.problem-title {
+  color: #ffd29a;
+  font-weight: 700;
+  margin: 0 0 0.4rem;
+}
+
+.settings-problems ul,
+.setup-needed ul {
+  margin: 0;
+  padding-left: 1.2rem;
+}
+
+.settings-actions {
+  display: flex;
+  gap: 0.75rem;
+  position: sticky;
+  bottom: 0;
+  padding: 0.75rem 0;
+  background: #241813;
+}
+
+.secret-status.unset {
+  color: #ffd29a;
+}
+
+/* ---- Rip a CD page ---- */
+.rip-step { border: 1px solid var(--border, #3a3a4a); border-radius: 8px; margin: 1rem 0; padding: 0.75rem 1rem 1rem; }
+.rip-step legend { font-weight: 600; padding: 0 0.4rem; }
+.rip-step label { display: block; margin-top: 0.6rem; }
+.rip-step label.check, .rip-candidate, .rip-track { display: flex; gap: 0.5rem; align-items: baseline; }
+.rip-step select, .rip-step input:not([type="checkbox"]):not([type="radio"]) { min-width: 18rem; max-width: 100%; }
+.rip-candidates { margin: 0.6rem 0; }
+.rip-auto { font-size: 0.85em; opacity: 0.8; }
+/* Every track of the disc is visible at once: no inner scrolling, the list flows into as many columns as fit (D103). */
+.rip-tracks { margin-top: 0.8rem; }
+.rip-tracks .rip-track { break-inside: avoid; padding: 1px 0; }
+.rip-track-list { column-width: 21rem; column-gap: 1.5rem; }
+.rip-step label.rip-candidate { display: flex; flex-direction: row; gap: 0.8rem; align-items: center; padding: 0.4rem 0; border-bottom: 1px solid rgba(255,255,255,0.08); }
+.rip-cover { width: 6rem; height: 6rem; object-fit: cover; border-radius: 6px; background: #2a1d14; flex: none; }
+.rip-cover[hidden] { display: none; }
+.rip-candidate-text { display: flex; flex-direction: column; gap: 0.1rem; flex: 1; }
+.rip-table { border-collapse: collapse; margin: 0.8rem 0; }
+.rip-table th, .rip-table td { text-align: left; padding: 0.2rem 1rem 0.2rem 0; }
+#rip-start { margin-top: 0.5rem; }
+
+/* ---- Player bar and play buttons ---- */
+.player-bar { position: fixed; left: 0; right: 0; bottom: 0; display: flex; gap: 0.8rem; align-items: center; padding: 0.6rem 1.2rem; background: #1e1510; border-top: 1px solid #5a3a20; z-index: 40; }
+.player-bar[hidden] { display: none; }
+.player-text { display: flex; flex-direction: column; min-width: 12rem; max-width: 22rem; }
+.player-text span { opacity: 0.8; font-size: 0.85em; }
+.player-bar audio { flex: 1; min-width: 12rem; }
+.play-button { margin-right: 0.6rem; }
+main { padding-bottom: 5rem; }
+
+.rip-bulk { display: flex; gap: 0.5rem; margin-bottom: 0.4rem; }
+
+/* ---- Covers ---- */
+.album-card-head { display: flex; gap: 1rem; align-items: flex-start; margin-bottom: 0.6rem; }
+.album-cover { width: 9rem; height: 9rem; object-fit: cover; border-radius: 6px; background: #2a1d14; flex: none; }
+.album-cover[hidden] { display: none; }
+.artist-artwork img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
+.player-cover { width: 3rem; height: 3rem; object-fit: cover; border-radius: 4px; flex: none; }
+.player-cover[hidden] { display: none; }
+
+/* ---- Pictures and lyrics dialog ---- */
+#media-dialog { max-width: 42rem; width: 92vw; }
+.media-paste { border: 2px dashed #7a5030; border-radius: 8px; padding: 1.2rem; margin: 0.6rem 0; text-align: center; cursor: pointer; }
+.media-paste:focus { outline: 2px solid #e8894a; }
+.media-preview { max-width: 12rem; max-height: 12rem; display: block; margin: 0.5rem 0; border-radius: 4px; }
+.media-preview[hidden] { display: none; }
+#media-lyrics { width: 100%; box-sizing: border-box; }
+
+.player-bar .is-on { outline: 2px solid #e8894a; }
+/* One steady row: long titles are cut short rather than pushing the buttons onto a second line, which made the
+   bar grow and shrink from song to song. The page keeps clear of it by its measured height (--player-height). */
+.player-bar { flex-wrap: nowrap; }
+.player-bar > button { flex: none; }
+.player-text { flex: 0 1 18rem; min-width: 6rem; overflow: hidden; }
+.player-text strong, .player-text span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.player-bar audio { flex: 1 1 14rem; min-width: 10rem; }
+main { padding-bottom: calc(var(--player-height, 0px) + 2rem); }
+@media (max-width: 1050px) {
+  .player-bar { flex-wrap: wrap; } /* too narrow for one row; the page padding still follows the bar */
+}
+
+/* ---- Now Playing ---- */
+/* `overflow: clip`, not hidden: a hidden box can still be scrolled by script (scrollIntoView on a lyric line did exactly that and slid the whole
+   page up out of reach, 2026-11-17); a clipped one cannot be scrolled at all. */
+.now-playing { position: fixed; inset: 0; z-index: 30; background: #120c08; overflow: clip; color: #f6e9dc; }
+.now-playing[hidden] { display: none; }
+.np-wall { position: absolute; inset: 0; overflow: hidden; display: grid; grid-template-columns: repeat(auto-fill, 80px); grid-auto-rows: 80px; grid-auto-flow: dense; gap: 3px; justify-content: center; align-content: start; }
+.np-tile { width: 100%; height: 100%; object-fit: cover; filter: sepia(1) saturate(1.5) hue-rotate(-12deg) brightness(0.7); }
+.np-tint { position: absolute; inset: 0; background: linear-gradient(to top, rgba(20, 10, 4, 0.92), rgba(40, 20, 8, 0.45) 55%, rgba(20, 10, 4, 0.7)); }
+.np-back { position: absolute; top: 1rem; left: 1rem; width: 3rem; height: 3rem; border-radius: 50%; font-size: 1.4rem; }
+.np-info { position: absolute; left: 3rem; bottom: 7rem; display: flex; gap: 1.2rem; align-items: flex-end; max-width: 50%; }
+.np-cover { width: 12rem; height: 12rem; object-fit: cover; border: 4px solid #fff; flex: none; }
+.np-cover[hidden] { display: none; }
+.np-artist { margin: 0; font-size: 1.8rem; font-weight: 600; letter-spacing: 0.04em; }
+.np-album { margin: 0; font-size: 1.5rem; font-weight: 300; }
+.np-title { margin: 0.6rem 0 0; font-size: 1.2rem; font-weight: 600; color: #f0a468; }
+.np-queue { position: absolute; right: 2rem; top: 5rem; bottom: 7rem; width: 22rem; margin: 0; padding: 0; list-style: none; overflow: auto; background: rgba(10, 6, 3, 0.82); }
+.np-queue li { margin: 0; display: flex; align-items: stretch; }
+.np-queue li .np-queue-item { flex: 1; min-width: 0; }
+/* Remove from queue: a quiet × on each song but the one playing, clearer on hover. */
+.np-queue-remove { flex: none; width: 2.2rem; background: none; border: 0; border-radius: 0; color: inherit; opacity: 0; font-size: 1.1rem; cursor: pointer; }
+.np-queue li:hover .np-queue-remove, .np-queue-remove:focus-visible { opacity: 0.55; }
+.np-queue-remove:hover { opacity: 1; background: rgba(255, 255, 255, 0.1); }
+.np-queue-item { display: block; width: 100%; text-align: left; background: none; border: 0; border-radius: 0; padding: 0.55rem 1rem; color: inherit; }
+.np-queue-item:hover, .np-queue-item:focus { background: rgba(255, 255, 255, 0.1); }
+.np-queue-title { display: block; font-weight: 500; }
+.np-queue-artist { display: block; font-size: 0.75rem; opacity: 0.6; text-transform: uppercase; }
+.np-queue .np-current .np-queue-title { color: #f0a468; }
+@media (max-width: 900px) { .np-queue { display: none; } .np-info { max-width: none; } }
+
+/* ---- Defect scan dialog ---- */
+#scan-dialog { max-width: 42rem; width: 92vw; }
+.scan-track { border-top: 1px solid #5a3a20; padding: 0.6rem 0; }
+.scan-track h3 { margin: 0 0 0.3rem; }
+.scan-findings { list-style: none; margin: 0.3rem 0; padding: 0; }
+.scan-findings li { margin: 0.25rem 0; }
+#scan-progress { width: 100%; }
+#scan-progress[hidden] { display: none; }
+
+/* ---- Flag for review ---- */
+#flag-dialog { max-width: 34rem; width: 92vw; }
+#pair-dialog { max-width: 30rem; width: 92vw; }
+.pair-code { font-size: 3rem; font-weight: 600; letter-spacing: 0.15em; text-align: center; margin: 0.5rem 0; font-variant-numeric: tabular-nums; }
+.share-devices { list-style: none; padding: 0; margin: 0 0 0.75rem; }
+.share-devices li { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.35rem 0; border-bottom: 1px solid var(--line); }
+#flag-reasons label { display: flex; gap: 0.5rem; margin: 0.4rem 0; }
+#flag-note { width: 100%; box-sizing: border-box; }
+.flagged-mark { color: #f0a468; margin-left: 0.6rem; font-size: 0.85em; }
+.review-card { border-top: 1px solid #5a3a20; padding: 0.7rem 0; }
+.review-card h3 { margin: 0 0 0.2rem; }
+
+/* The wall emphasises what is playing; the rest of the library stays dim. */
+.np-tile-library { filter: sepia(1) saturate(1.3) hue-rotate(-12deg) brightness(0.52); }
+.np-tile-artist { filter: sepia(0.7) saturate(1.4) hue-rotate(-12deg) brightness(0.75); }
+.np-tile-queue { filter: sepia(0.5) saturate(1.3) hue-rotate(-12deg) brightness(0.85); }
+.np-tile-current { filter: sepia(0.15) saturate(1.2) brightness(1); box-shadow: 0 0 0 3px rgba(240, 164, 104, 0.9); z-index: 1; }
+
+/* ---- Home ---- */
+.home-shelf { margin: 1.4rem 0; }
+.home-shelf h3 { margin: 0 0 0.5rem; }
+/* No scroll bar (owner, 2026-11-18): one row that fills the page width. Tiles that do not fit wrap onto rows of height 0 and are clipped. */
+.home-row { display: grid; grid-template-columns: repeat(auto-fill, 9.5rem); grid-template-rows: auto; grid-auto-rows: 0; gap: 0 1rem; justify-content: space-between; overflow: hidden; padding-bottom: 0.5rem; }
+.home-tile { width: 9.5rem; flex: none; display: flex; flex-direction: column; gap: 0.25rem; }
+.home-tile-play { position: relative; width: 9.5rem; height: 9.5rem; padding: 0; border: 0; border-radius: 6px; overflow: hidden; background: #2a1d14; cursor: pointer; }
+.home-cover { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.home-cover[hidden] { display: none; }
+.home-cover-letter { font-size: 3rem; opacity: 0.5; }
+.home-tile-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.home-tile-open { background: none; border: 0; padding: 0; text-align: left; opacity: 0.7; font-size: 0.85em; cursor: pointer; color: inherit; }
+/* "I'm feeling lucky" jukebox (owner, 2026-11-16): a window of covers with a marker in the middle. */
+.lucky-window { --tile: 9.5rem; --gap: 1rem; position: relative; overflow: hidden; height: calc(var(--tile) + 1.8rem); background: #120b06; border: 1px solid var(--line); border-radius: 6px; }
+.lucky-window::before, .lucky-window::after { content: ""; position: absolute; top: 0; bottom: 0; width: 18%; z-index: 2; pointer-events: none; }
+.lucky-window::before { left: 0; background: linear-gradient(to right, #120b06, transparent); }
+.lucky-window::after { right: 0; background: linear-gradient(to left, #120b06, transparent); }
+/* The reel's left edge sits at the middle of the window and it is shifted back by the middle of disc number --i, so that disc
+   stays under the box whatever the window's width (a script only moves it while it spins). */
+.lucky-reel { --i: 0; position: absolute; top: 0; left: 50%; display: flex; align-items: center; gap: var(--gap); height: 100%; will-change: transform;
+  transform: translateX(calc(-1 * (var(--i) * (var(--tile) + var(--gap)) + var(--tile) / 2))); }
+.lucky-disc { position: relative; flex: none; display: flex; align-items: center; justify-content: center; width: var(--tile); height: var(--tile); padding: 0; border: 0; border-radius: 6px; overflow: hidden; background: #2a1d14; color: inherit; cursor: pointer; }
+.lucky-window.is-spinning .lucky-disc { pointer-events: none; }
+/* The box in the middle takes the accent colour, like the buttons. */
+.lucky-frame { position: absolute; top: 0.45rem; bottom: 0.45rem; left: 50%; width: calc(var(--tile) + 0.9rem); transform: translateX(-50%); z-index: 3; pointer-events: none;
+  border: 3px solid var(--accent); border-radius: 9px; box-shadow: 0 0 18px color-mix(in srgb, var(--accent) 45%, transparent), inset 0 0 12px color-mix(in srgb, var(--accent) 30%, transparent); }
+.lucky-controls { display: flex; align-items: center; gap: 1rem; margin-top: 0.7rem; }
+.lucky-controls p { margin: 0; }
+.home-attention { margin: 0.5rem 0 1rem; }
+
+/* ---- Now Playing: queue and lyrics side panel ---- */
+.np-side { position: absolute; right: 2rem; top: 5rem; bottom: 7rem; width: 24rem; display: flex; flex-direction: column; }
+.np-tabs { display: flex; gap: 0.4rem; margin-bottom: 0.4rem; }
+.np-tab { background: rgba(10, 6, 3, 0.6); border: 0; border-radius: 0; color: inherit; padding: 0.4rem 1rem; cursor: pointer; opacity: 0.7; }
+.np-tab.is-active { opacity: 1; box-shadow: inset 0 -3px 0 #f0a468; }
+.np-side .np-queue { position: static; width: auto; flex: 1; }
+.np-lyrics { flex: 1; overflow: auto; background: rgba(10, 6, 3, 0.82); padding: 1rem 1.2rem; }
+.np-lyrics[hidden] { display: none; }
+.np-lyrics-note { margin: 0 0 0.8rem; font-size: 0.75rem; opacity: 0.65; }
+.np-lyric-line, .np-lyric-plain { margin: 0.35rem 0; font-size: 1.05rem; line-height: 1.35; }
+.np-lyric-line { opacity: 0.5; cursor: pointer; transition: opacity 0.3s, color 0.3s, transform 0.3s; transform-origin: left; }
+.np-lyric-line.np-lyric-now { opacity: 1; color: #f0a468; font-weight: 600; transform: scale(1.06); }
+@media (max-width: 900px) { .np-side { display: none; } }
+
+.np-lyrics { overflow-x: hidden; }
+
+.find-row { display: flex; gap: 0.6rem; align-items: center; justify-content: space-between; border-top: 1px solid #5a3a20; padding: 0.4rem 0; }
+
+/* ---- Always-visible top bar, Review sub-navigation, Settings blocks ---- */
+main { padding-top: 0; gap: 1.2rem; }
+.app-header { position: sticky; top: 0; z-index: 25; background: #140e0a; padding: 0.6rem 0; gap: 1rem; border-bottom: 1px solid #3a251a; }
+.app-header .eyebrow { display: none; }
+.app-header h1 { font-size: 1.35rem; margin: 0; }
+.app-header #status { margin: 0.1rem 0 0; font-size: 0.8rem; opacity: 0.75; max-width: 28rem; }
+.app-header .brand-logo { height: 3.4rem; width: 5.2rem; }
+.subnav { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.4rem 0 1rem; border-bottom: 1px solid #3a251a; padding-bottom: 0.5rem; }
+.subnav-button { background: transparent; border: 1px solid #805542; color: #f4e8df; }
+.subnav-button.is-active, .subnav-button:hover, .subnav-button:focus-visible { background: #e88647; border-color: #e88647; color: #1a100b; }
+.review-panel[hidden] { display: none; }
+.settings-block { border: 1px solid #5a3a20; border-radius: 8px; padding: 0.8rem 1rem 1rem; margin: 0.8rem 0; }
+.settings-block h3 { margin-top: 0; }
+.drive-setup { border: 1px solid #5a3a20; border-radius: 8px; padding: 0.6rem 1rem; margin: 0.8rem 0; }
+.drive-setup summary { cursor: pointer; font-weight: 600; }
+@media (max-width: 900px) { .app-header nav { grid-column: 1 / -1; } }
+
+main { align-content: start; }
+.app-header { align-self: start; }
+
+/* ---- Getting Started ---- */
+.setup-box { border: 2px solid #e88647; border-radius: 10px; padding: 1rem 1.2rem; margin: 0 0 1.4rem; background: rgba(232, 134, 71, 0.07); }
+.setup-box[hidden] { display: none; }
+.setup-box h3 { margin: 0 0 0.3rem; }
+.setup-step { border-top: 1px solid #5a3a20; padding: 0.7rem 0; }
+.setup-step h4 { margin: 0 0 0.2rem; }
+.setup-step.is-done h4 { color: #8fd18f; }
+.setup-buttons { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-top: 0.4rem; }
+.setup-name { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; width: 100%; }
+.setup-name input { min-width: 18rem; }
+.setup-choice { display: flex; gap: 1.5rem; margin: 0.3rem 0; }
+.setup-extras { margin-top: 0.8rem; }
+.setup-extra { margin: 0.6rem 0; }
+
+/* ---- Tag issues: groups, selection, batch editor ---- */
+#issue-tools { display: flex; flex-wrap: wrap; gap: 0.8rem; align-items: center; margin: 0.5rem 0 0.8rem; }
+.issue-group { display: flex; gap: 0.6rem; align-items: center; margin-top: 1rem; padding: 0.4rem 0; border-top: 1px solid #5a3a20; }
+.issue-pick { margin-right: 0.5rem; }
+.compilation-check { display: flex; gap: 0.5rem; align-items: flex-start; margin: 0.4rem 0; font-size: 0.9em; }
+#edit-album-artist[readonly] { opacity: 0.75; }
+
+.row-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.3rem; }
+li:has(> .issue-pick) { grid-template-columns: auto 1fr; column-gap: 0.7rem; }
+li:has(> .issue-pick) > * { grid-column: 2; }
+li:has(> .issue-pick) > .issue-pick { grid-column: 1; grid-row: 1; align-self: start; margin-top: 0.2rem; }
+
+/* ==== Minimal dark look (D32): square corners, one dark palette, the album-art wall behind every page ==== */
+:root {
+  color-scheme: dark;
+  --ink: #f2ece6;
+  --ink-dim: #b9aea6;
+  --ink-faint: #8a807a;
+  --accent: #e88647;
+  --accent-ink: #120a05;
+  --panel: rgba(10, 8, 7, 0.8);
+  --panel-solid: #120e0c;
+  --line: rgba(255, 255, 255, 0.1);
+  --line-strong: rgba(255, 255, 255, 0.22);
+  background: #050404;
+  color: var(--ink);
+}
+*, *::before, *::after { border-radius: 0 !important; }
+html, body { background: #050404; overflow-x: clip; }
+main { position: relative; z-index: 1; background: transparent; }
+
+/* Panels let the wall show through, faintly. */
+section, .settings-group, .drive-card, .drive-progress, .drive-result, .album-card, .artist-card, .setup-box,
+.settings-block, .drive-setup, .server-card, .settings-problems, .setup-needed, .rip-step, .choice-menu {
+  background: var(--panel);
+  border: 1px solid var(--line);
+}
+section section, section .settings-group, section .album-card, section .drive-card, section .setup-box { background: rgba(0, 0, 0, 0.35); }
+.setup-box { border-color: var(--accent); }
+li, .scan-track, .review-card, .setup-step, .issue-group, .find-row { border-color: var(--line); }
+
+/* Buttons: flat. The accent is for the main action; the rest are outlines. */
+button { background: var(--accent); color: var(--accent-ink); }
+button.secondary, .back-button, .subnav-button { background: transparent; border: 1px solid var(--line-strong); color: var(--ink); }
+button.secondary:hover, button.secondary:focus-visible, .back-button:hover, .subnav-button:hover { background: rgba(255, 255, 255, 0.08); }
+.subnav-button.is-active { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+input, select, textarea, .field input[type="text"], .field input[type="number"], .field input[type="password"], .field select {
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid var(--line-strong);
+  color: var(--ink);
+}
+.eyebrow { color: var(--accent); }
+.field-hint, .group-intro, .page-heading > p, li span, .drive-meta, .drive-hint { color: var(--ink-dim); }
+
+/* Top bar: wraps instead of running off the edge, so every page stays reachable at any window width. */
+.app-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 1rem;
+  background: rgba(5, 4, 4, 0.86);
+  border-bottom: 1px solid var(--line);
+  min-width: 0;
+}
+.app-header > div { flex: 1 1 14rem; min-width: 0; }
+.app-header .brand-logo { border: 0; background: transparent; }
+/* Brand (D86): the record artwork large, the logo's own lettering beside it (both cut from brand/mediaverse-logo.jpg
+   with the black made transparent), in place of a small copy of the whole logo and a plain-text title. */
+.app-header .brand-logo { height: 4.4rem; width: auto; aspect-ratio: 545 / 377; object-fit: contain; border-radius: 0; margin: -0.3rem -0.2rem -0.3rem 0; }
+.app-header .brand-title { line-height: 0; margin: 0 0 0.15rem; }
+.brand-wordmark { height: 2.7rem; width: auto; max-width: 100%; object-fit: contain; object-position: left center; }
+@media (max-width: 40rem) {
+  .app-header .brand-logo { height: 3.2rem; }
+  .brand-wordmark { height: 2rem; }
+}
+.app-header nav { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0 1.1rem; min-width: 0; flex: 0 1 auto; margin-left: auto; }
+.nav-button {
+  background: transparent;
+  border: 0;
+  color: var(--ink-faint);
+  font-size: 1.45rem;
+  font-weight: 300;
+  letter-spacing: 0.01em;
+  padding: 0.15rem 0;
+  text-transform: lowercase;
+}
+.nav-button:hover, .nav-button:focus-visible { background: transparent; color: var(--ink); }
+.nav-button.is-active { background: transparent; color: var(--ink); font-weight: 400; }
+@media (max-width: 40rem) {
+  .app-header nav { margin-left: 0; justify-content: flex-start; width: 100%; }
+  .nav-button { font-size: 1.15rem; }
+}
+
+/* The wall itself. */
+.backdrop { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; background: #050404; }
+.backdrop-wall {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 96px);
+  grid-auto-rows: 96px;
+  grid-auto-flow: dense;
+  gap: 2px;
+  justify-content: center;
+  align-content: start;
+  perspective: 900px;
+}
+.backdrop-tile {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: grayscale(1) contrast(1.1) brightness(0.62);
+  transform: rotateY(0deg);
+  transition: transform 0.45s ease-in, filter 0.45s;
+  backface-visibility: hidden;
+}
+.backdrop-tile.is-flipping { transform: rotateY(90deg); transition-timing-function: ease-in; }
+/* One colour washes the grey wall and drifts slowly through hues, like the northern lights. */
+.backdrop-aurora {
+  position: absolute;
+  inset: -25%;
+  background:
+    radial-gradient(60% 50% at 25% 30%, #b0207a 0%, transparent 70%),
+    radial-gradient(55% 45% at 75% 65%, #c8761f 0%, transparent 70%),
+    linear-gradient(120deg, #6a1f6e, #8a4a14);
+  mix-blend-mode: color;
+  opacity: 0.9;
+  animation: aurora-hue 240s linear infinite, aurora-drift 90s ease-in-out infinite alternate;
+}
+.backdrop-shade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0.4) 40%, rgba(0, 0, 0, 0.62));
+}
+.backdrop.is-paused .backdrop-aurora { animation-play-state: paused; }
+/* The colour mask is off (Settings > Display): the covers show in their own colours, kept as dark as before. */
+html[data-mask="off"] .backdrop-aurora, html[data-mask="off"] .np-aurora { display: none; }
+html[data-mask="off"] .backdrop-tile { filter: brightness(0.62) contrast(1.05); }
+html[data-mask="off"] .np-tile, html[data-mask="off"] .np-tile-library, html[data-mask="off"] .np-tile-artist { filter: brightness(0.55) contrast(1.05); }
+html[data-mask="off"] .np-tile-queue { filter: brightness(0.72) contrast(1.05); }
+/* A chosen colour instead of the drifting blend: one colour, no hue drift (the slow position drift stays). */
+html[data-mask-fixed] .backdrop-aurora, html[data-mask-fixed] .np-aurora {
+  background: radial-gradient(60% 50% at 25% 30%, var(--mask) 0%, transparent 70%), radial-gradient(55% 45% at 75% 65%, var(--mask) 0%, transparent 70%), linear-gradient(120deg, var(--mask), var(--mask));
+  animation: aurora-drift 90s ease-in-out infinite alternate;
+}
+html[data-mask-fixed][data-motion="gentle"] .backdrop-aurora, html[data-mask-fixed][data-motion="gentle"] .np-aurora { animation-duration: 180s; }
+html[data-mask-fixed][data-motion="still"] .backdrop-aurora, html[data-mask-fixed][data-motion="still"] .np-aurora { animation: none; }
+@media (prefers-reduced-motion: reduce) { html:not([data-ignore-system-motion])[data-mask-fixed] .backdrop-aurora, html:not([data-ignore-system-motion])[data-mask-fixed] .np-aurora { animation: none; } }
+@keyframes aurora-hue { from { filter: hue-rotate(0deg); } to { filter: hue-rotate(360deg); } }
+@keyframes aurora-drift { from { transform: translate(-4%, -3%) scale(1); } to { transform: translate(4%, 3%) scale(1.08); } }
+
+/* Now Playing uses the same grey wall and drifting tint; the playing album keeps its colour. */
+.np-tile, .np-tile-library, .np-tile-artist, .np-tile-queue { filter: grayscale(1) contrast(1.1) brightness(0.55); }
+.np-tile-queue { filter: grayscale(1) contrast(1.1) brightness(0.72); }
+.np-tile-current { filter: none; box-shadow: 0 0 0 3px #fff; }
+.np-aurora { position: absolute; inset: -25%; pointer-events: none; mix-blend-mode: color; opacity: 0.9;
+  background: radial-gradient(60% 50% at 30% 35%, #b0207a 0%, transparent 70%), radial-gradient(55% 45% at 70% 60%, #c8761f 0%, transparent 70%), linear-gradient(120deg, #6a1f6e, #8a4a14);
+  animation: aurora-hue 240s linear infinite, aurora-drift 90s ease-in-out infinite alternate; }
+.np-tint { background: linear-gradient(to top, rgba(0, 0, 0, 0.88), rgba(0, 0, 0, 0.35) 55%, rgba(0, 0, 0, 0.6)); }
+.np-queue, .np-lyrics, .np-tab { background: rgba(0, 0, 0, 0.72); }
+.np-title, .np-queue .np-current .np-queue-title, .np-lyric-line.np-lyric-now { color: var(--accent); }
+
+/* The highlight colour (D72) is registered so it can fade: it changes with each cover in Now Playing and back
+   to the chosen colour (Settings > Display) outside it. accent.ts sets it on <html>. */
+@property --accent { syntax: "<color>"; inherits: true; initial-value: #e88647; }
+html { transition: --accent 0.9s ease; }
+/* In Now Playing the music glow takes the cover's colour too. */
+.now-playing .music-glow {
+  background: radial-gradient(50% 45% at 50% 100%,
+    color-mix(in srgb, var(--accent) 95%, transparent) 0%,
+    color-mix(in srgb, var(--accent) 45%, transparent) 45%,
+    transparent 75%);
+}
+/* Settings > Display: the 16 highlight colours as small square swatches (radio buttons underneath). */
+.accent-choices { border: 0; margin: 0.8rem 0; padding: 0; }
+.accent-swatches { display: grid; grid-template-columns: repeat(8, 1.9rem); gap: 0.4rem; margin-top: 0.4rem; }
+.accent-swatch { position: relative; width: 1.9rem; height: 1.9rem; background: var(--swatch); cursor: pointer; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35); }
+.accent-swatch input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; }
+.accent-swatch:hover { outline: 1px solid var(--line-strong); outline-offset: 2px; }
+.accent-swatch:has(input:checked) { outline: 2px solid var(--ink); outline-offset: 2px; }
+.accent-swatch:has(input:focus-visible) { outline: 2px dashed var(--ink); outline-offset: 3px; }
+.accent-name { margin: 0.4rem 0 0; color: var(--accent); }
+
+@media (prefers-reduced-motion: reduce) {
+  html:not([data-ignore-system-motion]) .backdrop-aurora, html:not([data-ignore-system-motion]) .np-aurora { animation: none; }
+  html:not([data-ignore-system-motion]) .backdrop-tile { transition: none; }
+}
+
+/* Player bar */
+.player-bar { background: rgba(5, 4, 4, 0.92); border-top: 1px solid var(--line); }
+
+/* Dialogs: dark, square, and never taller than the window, with Close always in view. */
+dialog { background: var(--panel-solid); border: 1px solid var(--line-strong); color: var(--ink); }
+dialog::backdrop { background: rgba(0, 0, 0, 0.6); }
+dialog.panel-dialog[open] { display: flex; flex-direction: column; max-height: 88vh; padding: 0; overflow: hidden; }
+.panel-dialog-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem 1.25rem 0.5rem; border-bottom: 1px solid var(--line); }
+.panel-dialog-head h2 { margin: 0; font-size: 1.3rem; }
+.panel-dialog-body { overflow-y: auto; padding: 0.75rem 1.25rem; flex: 1 1 auto; min-height: 0; }
+.panel-dialog-foot { padding: 0.75rem 1.25rem; border-top: 1px solid var(--line); }
+.dialog-x { background: transparent; color: var(--ink); border: 1px solid var(--line-strong); padding: 0.3rem 0.65rem; font-size: 1rem; }
+.dialog-x:hover, .dialog-x:focus-visible { background: rgba(255, 255, 255, 0.1); }
+
+/* Getting Started: finished steps shrink to one line. */
+.setup-done { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; padding: 0.45rem 0; border-top: 1px solid var(--line); color: var(--ink-dim); }
+.setup-done strong { color: var(--ink); font-weight: 500; overflow-wrap: anywhere; }
+.setup-done button { margin-left: auto; padding: 0.3rem 0.7rem; }
+.setup-busy { color: var(--accent); }
+
+/* Cast placeholder (D32): shown greyed out until casting exists. */
+.cast-preview { border: 0; margin: 0.4rem 0; padding: 0; display: grid; gap: 0.35rem; opacity: 0.55; }
+.cast-preview legend { margin-top: 0.6rem; float: left; width: 100%; }
+.cast-preview p.field-label { margin: 0.6rem 0 0; }
+
+/* The page column never grows past the window. Grid items default to their content's width, so one wide
+   row (the horizontally scrolling Home shelves) used to push the whole page, and the top bar, off screen. */
+main { grid-template-columns: minmax(0, 1fr); width: 100%; }
+main > *, section, .page { min-width: 0; max-width: 100%; box-sizing: border-box; }
+.home-row { max-width: 100%; }
+progress { accent-color: var(--accent); }
+.app-header { background: rgba(5, 4, 4, 0.95); }
+
+/* ==== Music glow, screen care and motion levels (D32) ==== */
+/* A soft red-orange glow along the bottom that breathes with the music (Zune Quickplay); --glow is set by
+   visualizer.ts from 0 (silent or paused) to 1. The transition makes pauses fade out rather than cut. */
+.music-glow {
+  position: absolute;
+  left: 15%;
+  right: 15%;
+  bottom: -6rem;
+  height: 16rem;
+  pointer-events: none;
+  background: radial-gradient(50% 45% at 50% 100%,
+    hsl(calc(14 + 22 * var(--glow-warm, 0)) 95% 55% / 0.95) 0%,
+    hsl(calc(4 + 20 * var(--glow-warm, 0)) 90% 45% / 0.45) 45%,
+    transparent 75%);
+  opacity: calc(0.95 * var(--glow, 0));
+  transform: scaleY(calc(0.35 + 0.9 * var(--glow, 0)));
+  transform-origin: 50% 100%;
+  transition: opacity 1.2s ease-out;
+  filter: blur(6px);
+}
+html[data-motion="still"] .music-glow { opacity: 0; }
+/* On the main pages the glow sits just above the player bar. */
+.backdrop .music-glow { bottom: calc(4.2rem - 6rem); }
+.now-playing .music-glow { z-index: 1; }
+
+/* Motion levels: gentle slows the tint; still stops it (flips are stopped in backdrop.ts). */
+html[data-motion="gentle"] .backdrop-aurora, html[data-motion="gentle"] .np-aurora { animation-duration: 480s, 180s; }
+html[data-motion="still"] .backdrop-aurora, html[data-motion="still"] .np-aurora { animation: none; }
+html[data-motion="still"] .backdrop-tile { transition: none; }
+
+/* Burn-in care in Now Playing: the cover block and the side panel drift a few pixels over many minutes
+   (this happens at every motion level; it is too slow to notice), and the controls dim when idle. */
+@keyframes slow-drift {
+  0% { transform: translate(0, 0); }
+  25% { transform: translate(14px, -8px); }
+  50% { transform: translate(-6px, -14px); }
+  75% { transform: translate(-14px, 6px); }
+  100% { transform: translate(0, 0); }
+}
+.np-info { animation: slow-drift 1440s linear infinite; }
+.np-side { animation: slow-drift 1800s linear infinite reverse; }
+.np-back, .np-side, .np-tabs { transition: opacity 2s ease; }
+.now-playing.is-idle { cursor: none; }
+.now-playing.is-idle .np-back, .now-playing.is-idle .np-tabs { opacity: 0.15; }
+.now-playing.is-idle .np-side { opacity: 0.55; }
+
+/* Fade to black after a long idle spell with nothing playing; any input brings the picture back. */
+.sleep-cover { position: fixed; inset: 0; z-index: 100; background: #000; opacity: 0; pointer-events: none; transition: opacity 4s ease; }
+html.is-asleep .sleep-cover { opacity: 1; pointer-events: auto; cursor: none; }
+
+.settings-radios { border: 0; padding: 0; margin: 0.4rem 0 0.8rem; display: grid; gap: 0.45rem; }
+.settings-radios label.check { align-items: flex-start; }
+.now-playing .music-glow { bottom: calc(4.2rem - 6rem); }
+
+/* Settings: sections listed on the left, one shown at a time (after Zune's settings). */
+.settings-layout { display: grid; grid-template-columns: 11rem minmax(0, 1fr); gap: 1.5rem; align-items: start; }
+.settings-sections { display: flex; flex-direction: column; gap: 0.15rem; position: sticky; top: 5.5rem; border-right: 1px solid var(--line); padding-right: 1rem; }
+.settings-sections button {
+  background: transparent; border: 0; color: var(--ink-faint); text-align: left; justify-self: stretch;
+  font-size: 0.8rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; padding: 0.45rem 0.6rem;
+}
+.settings-sections button:hover, .settings-sections button:focus-visible { color: var(--ink); background: rgba(255, 255, 255, 0.06); }
+.settings-sections button.is-active { color: var(--ink); box-shadow: inset 3px 0 0 var(--accent); }
+.settings-panel > :first-child { margin-top: 0; }
+@media (max-width: 48rem) {
+  .settings-layout { grid-template-columns: minmax(0, 1fr); }
+  .settings-sections { flex-direction: row; flex-wrap: wrap; position: static; border-right: 0; border-bottom: 1px solid var(--line); padding: 0 0 0.5rem; }
+  .settings-sections button.is-active { box-shadow: inset 0 -3px 0 var(--accent); }
+}
+.settings-actions { background: var(--panel-solid); border-top: 1px solid var(--line); }
+
+/* First-run welcome (after Zune's): black, a short gradient bar, capitals heading, lower-case choices. */
+.welcome { position: fixed; inset: 0; z-index: 60; overflow-y: auto; background: radial-gradient(120% 90% at 85% 100%, #1c1512 0%, #050404 55%); color: var(--ink); }
+.welcome-inner { max-width: 46rem; margin: 0 auto; padding: 4rem 1.5rem 3rem; display: grid; gap: 1.2rem; }
+.welcome-bar { width: 10rem; height: 0.4rem; background: linear-gradient(90deg, #e88647, #d4237c); }
+.welcome-title { margin: 0; font-size: 2.4rem; font-weight: 300; letter-spacing: 0.02em; text-transform: uppercase; }
+.welcome-choice { background: transparent; border: 0; padding: 0; display: grid; gap: 0.5rem; }
+.welcome-choice h2 { margin: 0.6rem 0 0; font-size: 2rem; font-weight: 300; text-transform: lowercase; }
+.welcome-lead { margin: 0; color: var(--accent); font-weight: 700; text-transform: uppercase; font-size: 0.85rem; letter-spacing: 0.06em; }
+.welcome-list { display: block; list-style: disc; padding-left: 1.2rem; margin: 0.2rem 0 0.6rem; }
+.welcome-list li { display: list-item; border: 0; padding: 0.1rem 0; color: var(--ink-dim); }
+.welcome-steps { margin-top: 0.5rem; }
+.welcome-later { background: transparent; color: var(--ink-dim); border: 0; padding: 0.3rem 0; text-decoration: underline; justify-self: start; }
+.welcome-later:hover, .welcome-later:focus-visible { color: var(--ink); background: transparent; }
+.issue-more { border: 0; padding: 0.4rem 0 0.8rem; }
+.issue-group { flex-wrap: wrap; }
+.library-scan { display: grid; gap: 0.5rem; margin: 0.6rem 0 1rem; padding: 1rem; }
+.library-scan progress { width: 100%; height: 0.9rem; }
+.library-scan button { justify-self: start; }
+.artist-find { width: 100%; max-width: 28rem; margin: 0 0 1rem; box-sizing: border-box; }
+.artist-more { grid-column: 1 / -1; justify-self: start; }
+
+/* A–Z bar down the right edge of the Library page (only shown while that page is). */
+.artist-letters {
+  position: fixed; right: 0.35rem; top: 50%; transform: translateY(-50%); z-index: 20;
+  display: flex; flex-direction: column; max-height: calc(100vh - 13rem);
+  background: rgba(5, 4, 4, 0.8); border: 1px solid var(--line); padding: 0.2rem 0;
+}
+.artist-letters button {
+  flex: 1 1 0; min-height: 0; background: transparent; color: var(--ink); justify-self: stretch;
+  padding: 0 0.45rem; font-size: min(0.8rem, 2.4vh); line-height: 1; font-weight: 700;
+}
+.artist-letters button:hover, .artist-letters button:focus-visible { background: var(--accent, #e88647); color: #1a100b; }
+.artist-letters button:disabled { opacity: 0.25; cursor: default; background: transparent; color: var(--ink); }
+#library-page .artist-grid { padding-right: 2rem; }
+
+/* Finding a cover online: the choices as small covers with a caption. */
+.media-find-art { margin: 0.6rem 0; display: grid; gap: 0.4rem; }
+.art-results { display: grid; grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); gap: 0.6rem; }
+.art-choice { background: transparent; border: 1px solid var(--line-strong); color: var(--ink); padding: 0.4rem; display: grid; gap: 0.3rem; text-align: left; justify-self: stretch; font-weight: 400; font-size: 0.8rem; }
+.art-choice img { width: 100%; aspect-ratio: 1; object-fit: cover; }
+.art-choice:hover, .art-choice:focus-visible { border-color: var(--accent); background: rgba(255, 255, 255, 0.05); }
+#media-dialog[open] { max-height: 88vh; overflow-y: auto; }
+.art-choice > button { justify-self: start; }
+.art-link { align-content: start; }
+.art-link a { color: var(--accent); font-size: 0.75rem; }
+/* Album pictures: front cover, back cover and artist photo side by side, each a square. */
+#media-dialog { max-width: 52rem; }
+/* Save & Close and Undo and Exit stay in sight at the bottom however far the dialog is scrolled. */
+#media-dialog .media-foot { position: sticky; bottom: -1rem; margin: 0.8rem -1rem -1rem; padding: 0.7rem 1rem; background: var(--panel-solid); border-top: 1px solid var(--line); justify-content: flex-end; z-index: 1; }
+.picture-slots { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.8rem; margin: 0.6rem 0; }
+.picture-slot { display: grid; gap: 0.25rem; align-content: start; padding: 0.4rem; border: 1px solid var(--line); border-radius: 6px; outline: none; }
+.picture-slot:focus-visible, .picture-slot:focus { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.picture-slot.is-changed { border-style: dashed; border-color: #ffb27a; }
+.slot-image { aspect-ratio: 1; display: grid; place-items: center; background: rgba(0, 0, 0, 0.35); border-radius: 4px; overflow: hidden; }
+.slot-image img { width: 100%; height: 100%; object-fit: contain; }
+.slot-image.is-empty { border: 2px dashed #7a5030; color: var(--ink-faint); font-size: 0.8rem; text-align: center; padding: 0.6rem; }
+.slot-size { color: var(--ink-faint); font-size: 0.78rem; }
+.slot-actions { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.slot-actions button { padding: 0.2rem 0.5rem; font-size: 0.8rem; min-height: 0; }
+@media (max-width: 40rem) { .picture-slots { grid-template-columns: 1fr; } }
+/* Missing artwork: one compact line per album. */
+.gap-table { width: 100%; border-collapse: collapse; margin-top: 0.6rem; }
+.gap-table th { text-align: left; font-size: 0.8rem; color: var(--ink-faint); font-weight: 600; padding: 0.3rem 0.5rem; border-bottom: 1px solid var(--line-strong); }
+.gap-table td { padding: 0.3rem 0.5rem; border-bottom: 1px solid var(--line); vertical-align: middle; }
+.gap-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.gap-table tr:hover td { background: rgba(255, 255, 255, 0.04); }
+.gap-table button { padding: 0.2rem 0.6rem; min-height: 0; font-size: 0.85rem; white-space: nowrap; }
+/* Favorites (D44) */
+#player-favorite.is-on { color: #ff6b8a; }
+.favorite-mark { color: #ff6b8a; margin-left: 0.6rem; }
+.home-favorites { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+/* The turning cover wall (D46, shared with the TV): one tile at a time, slowly. */
+/* Flat at rest; 3D only while .is-moving (see cover-flip.ts). */
+.np-tile.flip-tile { position: relative; }
+.np-tile .flip-card { position: absolute; inset: 0; transition: transform 2.4s cubic-bezier(0.45, 0, 0.25, 1); }
+.np-tile .flip-face { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.np-tile .flip-back { display: none; }
+.np-tile.flip-tile.is-moving { perspective: 900px; }
+.np-tile.is-moving .flip-card { transform-style: preserve-3d; }
+.np-tile.is-moving .flip-face { backface-visibility: hidden; }
+.np-tile.is-moving .flip-back { display: block; transform: rotateY(180deg); }
+.np-tile .flip-card.is-turned { transform: rotateY(180deg); }
+
+/* ---- Review > Fix tags (ADR 0009) ---- */
+.ft-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 1rem; margin-bottom: 0.8rem; }
+.ft-intro p { margin: 0; color: var(--ink-dim); }
+.ft-progress { display: flex; flex-direction: column; gap: 0.35rem; min-width: 16rem; }
+.ft-progress-text { font-size: 0.85rem; color: var(--ink-dim); }
+.ft-progress-current { font-size: 0.75rem; color: var(--ink-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 26rem; }
+.ft-bar { height: 0.35rem; background: var(--line); }
+.ft-bar-fill { height: 100%; background: var(--accent); transition: width 0.4s; }
+.ft-chips { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.8rem; }
+.ft-chip { background: transparent; color: var(--ink-dim); border: 1px solid var(--line-strong); font-weight: 500; padding: 0.35rem 0.8rem; }
+.ft-chip.is-on { color: var(--ink); border-color: var(--accent); background: rgba(232, 134, 71, 0.12); }
+.ft-testing { margin: 0 0 0.6rem; padding: 0.5rem 0.8rem; border: 1px solid #4f6f7a; background: rgba(40, 70, 80, 0.25); color: #cfe3ea; font-size: 0.85rem; }
+.ft-report { margin: 0 0 0.6rem; padding: 0.5rem 0.8rem; border: 1px solid; font-size: 0.88rem; }
+.ft-report p { margin: 0; }
+.ft-report-good { border-color: #4f7a55; background: rgba(40, 90, 50, 0.25); color: #d6ecd8; }
+.ft-report-warn { border-color: #8a6a2a; background: rgba(110, 80, 20, 0.25); color: #f1e2c4; }
+.ft-problems { margin: 0.4rem 0 0; padding-left: 1.2rem; font-size: 0.8rem; opacity: 0.9; }
+.ft-undo { display: flex; gap: 0.8rem; align-items: center; margin: 0 0 0.6rem; font-size: 0.85rem; opacity: 0.85; }
+.ft-bar-sticky { position: sticky; top: 4.5rem; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem 1rem; padding: 0.6rem 0.9rem; background: var(--panel-solid); border: 1px solid var(--line-strong); margin-bottom: 0.9rem; }
+.ft-selection { flex: 1 1 10rem; color: var(--ink-dim); font-size: 0.9rem; }
+.ft-rule { font-size: 0.8rem; color: var(--ink-faint); flex: 2 1 18rem; }
+.ft-bar-sticky button:disabled { opacity: 0.45; cursor: not-allowed; }
+.ft-check { display: inline-flex; align-items: center; gap: 0.35rem; cursor: pointer; }
+.ft-list { display: flex; flex-direction: column; gap: 0.9rem; }
+.ft-empty { color: var(--ink-dim); }
+.ft-card { border: 1px solid var(--line-strong); background: var(--panel-solid); }
+.ft-card-head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.8rem; padding: 0.75rem 0.9rem; }
+.ft-initial { width: 2.8rem; height: 2.8rem; flex: none; display: grid; place-items: center; background: linear-gradient(135deg, #c55d27, #6e9790); color: #10131d; font-weight: 800; }
+.ft-card-text { flex: 1 1 20rem; min-width: 0; display: flex; flex-direction: column; gap: 0.15rem; }
+.ft-card-title { font-size: 1.05rem; font-weight: 600; }
+.ft-card-folder { font-size: 0.75rem; color: var(--ink-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ft-evidence { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.25rem; }
+.ft-ev { font-size: 0.75rem; padding: 0.1rem 0.5rem; border: 1px solid var(--line-strong); color: var(--ink-dim); }
+.ft-ev-good { border-color: #2f5a3b; color: #a9dcb6; }
+.ft-ev-warn { border-color: #6a4a1c; color: #f0c88a; }
+.ft-score { text-align: right; }
+.ft-score-value { font-size: 1.3rem; font-weight: 700; }
+.ft-score-label { font-size: 0.75rem; color: var(--ink-faint); }
+.ft-high { color: #7fd197; }
+.ft-mid { color: #f0c060; }
+.ft-low { color: #d9937f; }
+.ft-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.ft-actions button { padding: 0.35rem 0.8rem; }
+.ft-editions { padding: 0.6rem 0.9rem 0.8rem 4.5rem; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 0.4rem; }
+.ft-edition { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.6rem; font-size: 0.85rem; cursor: pointer; }
+.ft-edition strong { min-width: 2.8rem; }
+.ft-edition-extra { color: var(--ink-faint); }
+.ft-fields { display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; padding: 0.5rem 0.9rem; border-top: 1px solid var(--line); font-size: 0.85rem; color: var(--ink-dim); }
+.ft-table-wrap { overflow-x: auto; padding: 0 0.5rem 0.6rem; }
+.ft-table { width: 100%; min-width: 68rem; border-collapse: collapse; table-layout: fixed; font-size: 0.8rem; }
+.ft-table th { text-align: left; font-weight: 600; color: var(--ink-dim); padding: 0.4rem 0.45rem; border-bottom: 1px solid var(--line-strong); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ft-table th:nth-child(1) { width: 2rem; }
+.ft-table th:nth-child(2) { width: 13rem; }
+.ft-table th:nth-child(3) { width: 2.6rem; }
+.ft-table th:nth-child(4) { width: 2.6rem; }
+.ft-table th:nth-child(5) { width: 15rem; }
+.ft-table th:nth-child(10) { width: 3.8rem; }
+.ft-table th:nth-child(11) { width: 3.5rem; }
+.ft-table td { padding: 0.3rem 0.45rem; border-bottom: 1px solid var(--line); vertical-align: top; overflow: hidden; }
+.ft-table tr:hover td { background: rgba(255, 255, 255, 0.04); }
+.ft-table tr.is-skipped { opacity: 0.45; }
+.ft-name { color: var(--ink-dim); white-space: nowrap; text-overflow: ellipsis; }
+.ft-new, .ft-old, .ft-same { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ft-new { color: #ffb27a; }
+.ft-old { color: var(--ink-faint); text-decoration: line-through; font-size: 0.72rem; }
+.ft-confirm { display: block; white-space: nowrap; color: var(--ink-faint); font-size: 0.72rem; font-style: italic; }
+/* Suggestions are text boxes that look like text until hovered or focused. */
+.ft-input { width: 100%; min-width: 4rem; box-sizing: border-box; font: inherit; color: #ffb27a; background: transparent; border: 1px solid transparent; padding: 0.05rem 0.2rem; margin: -0.05rem -0.2rem; }
+.ft-input:hover { border-color: var(--line-strong); }
+.ft-input:focus { border-color: #ffb27a; background: rgba(0, 0, 0, 0.45); outline: none; }
+.ft-input.ft-plain { color: var(--ink); }
+/* What the release spells differently: yellow, its spelling offered as you type. */
+.ft-input.ft-differs { color: #f0c88a; text-decoration: underline dotted; text-underline-offset: 3px; cursor: text; }
+.ft-input.is-edited { color: #8fd3ff; font-style: italic; text-decoration: none; }
+.ft-album-boxes { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; margin: 0 0 0.5rem; }
+.ft-album-box { display: grid; gap: 0.1rem; font-size: 0.75rem; color: var(--ink-faint); min-width: 11rem; }
+.ft-album-box .ft-input { font-size: 0.9rem; border-color: var(--line); margin: 0; padding: 0.2rem 0.35rem; }
+.ft-follows { font-size: 0.7rem; color: #9fd8a6; }
+.ft-pager { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 0.8rem; margin-top: 1rem; color: var(--ink-dim); }
+.ft-pager-buttons { display: flex; gap: 0.5rem; }
+.pager { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 0.6rem 1rem; margin: 0.8rem 0; color: var(--ink-dim); }
+.pager-buttons { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem; }
+.pager-button { min-width: 2.4rem; padding: 0.35rem 0.6rem; }
+.pager-button.pager-step { padding: 0.35rem 0.8rem; }
+button.pager-button.is-active { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 700; }
+.pager-gap { padding: 0 0.3rem; color: var(--ink-dim); }
+.ft-initial { overflow: hidden; }
+.ft-cover { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ft-initial:has(.ft-cover) { width: 3.6rem; height: 3.6rem; background: none; }
+.ft-differs { color: #f0c88a; text-decoration: underline dotted; text-underline-offset: 3px; cursor: help; }
+.ft-source { font-size: 0.75rem; color: var(--accent); align-self: flex-start; margin-top: 0.2rem; }
+
+/* ==== Library (D52): Windows Media Player layout, Zune look ==== */
+/* The collage stays behind the library with its depth, darker than on Now Playing so the lists read easily. */
+body[data-page="library"] .backdrop-shade,
+body[data-page="artist"] .backdrop-shade { background: linear-gradient(to bottom, rgba(0, 0, 0, 0.78), rgba(0, 0, 0, 0.68) 45%, rgba(0, 0, 0, 0.84)); }
+body[data-page="library"] main,
+body[data-page="artist"] main { max-width: 110rem; }
+
+.lib-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.6rem 1.4rem; margin-bottom: 0.4rem; }
+.lib-title { margin: 0; font-size: 3rem; font-weight: 300; letter-spacing: -0.02em; text-transform: lowercase; }
+.lib-count { margin: 0; color: var(--ink-dim); font-size: 0.9rem; }
+.lib-find { margin-left: auto; width: 16rem; max-width: 100%; background: transparent; color: var(--ink); border: 0; border-bottom: 1px solid var(--line-strong); padding: 0.35rem 0.2rem; font: inherit; }
+.lib-find:focus { outline: none; border-bottom-color: var(--accent); }
+.lib-options, .lib-artist-heading .secondary { display: inline-flex; align-items: center; gap: 0.4rem; }
+.lib-empty { color: var(--ink-dim); }
+
+.lib-letter-heading { display: flex; align-items: center; gap: 0.8rem; margin: 1.2rem 0 0.4rem; font-size: 2rem; font-weight: 300; color: var(--accent); scroll-margin-top: calc(var(--header-height, 4.5rem) + 0.5rem); }
+.lib-letter-heading::after { content: ""; flex: 1; height: 1px; background: var(--line-strong); }
+.lib-artist-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); gap: 0.4rem 1.2rem; }
+.lib-artist { display: flex; align-items: center; gap: 1.1rem; padding: 0.55rem; background: transparent; border: 1px solid transparent; border-radius: 2px; color: var(--ink); text-align: left; cursor: pointer; font: inherit; min-width: 0; }
+.lib-artist:hover, .lib-artist:focus-visible { background: rgba(255, 255, 255, 0.06); border-color: var(--line); }
+.lib-artist-text { display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; }
+.lib-artist-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lib-artist-line { font-size: 0.85rem; color: var(--ink-dim); }
+.lib-artist-genre { font-size: 0.8rem; color: var(--ink-faint); }
+
+/* An artist's albums as a small stack: the newest cover on top, older ones turned out behind it. Covers are
+   square and shown whole (never stretched or cropped). */
+.lib-stack { position: relative; width: 7.2rem; height: 7.2rem; flex: none; }
+.lib-stack-card { position: absolute; inset: 0.55rem; display: grid; place-items: center; overflow: hidden; background: #1d1612; box-shadow: 0 3px 10px rgba(0, 0, 0, 0.7); }
+.lib-stack-3 { transform: rotate(-11deg); filter: brightness(0.8); }
+.lib-stack-2 { transform: rotate(8deg); filter: brightness(0.9); }
+.lib-stack-card img, .lib-art img { width: 100%; height: 100%; object-fit: contain; background: #0b0908; display: block; }
+.lib-stack-initial { font-size: 2rem; font-weight: 300; color: rgba(255, 255, 255, 0.45); }
+.lib-artist:hover .lib-stack-3 { transform: rotate(-14deg); }
+.lib-artist:hover .lib-stack-2 { transform: rotate(11deg); }
+.lib-stack-card { transition: transform 0.2s ease; }
+/* The artist's own photo (D97) lies on top of the album covers, which fan out behind it. */
+.lib-stack-photo { z-index: 3; transform: rotate(0deg); filter: none; }
+.lib-stack-photo img { object-fit: cover; object-position: 50% 25%; }
+.lib-stack.has-photo .lib-stack-1 { transform: rotate(7deg); filter: brightness(0.85); }
+.lib-stack.has-photo .lib-stack-2 { transform: rotate(-9deg); filter: brightness(0.75); }
+.lib-stack.has-photo .lib-stack-3 { transform: rotate(15deg); filter: brightness(0.65); }
+.lib-artist:hover .lib-stack.has-photo .lib-stack-1 { transform: rotate(10deg); }
+.lib-artist:hover .lib-stack.has-photo .lib-stack-2 { transform: rotate(-13deg); }
+.lib-artist:hover .lib-stack.has-photo .lib-stack-3 { transform: rotate(19deg); }
+
+/* Review > Artists (D97) */
+.artist-name-group { border-top: 1px solid var(--line); padding: 0.6rem 0; display: grid; gap: 0.3rem; justify-items: start; }
+.artist-name-choice { display: flex; gap: 0.6rem; align-items: baseline; cursor: pointer; }
+.artist-name-spelling { font-weight: 600; }
+.artist-names-list input[type="text"] { max-width: 18rem; }
+.artist-replace { display: block; margin: 0.5rem 0; }
+
+.lib-letters { position: fixed; right: 0.35rem; top: 50%; transform: translateY(-50%); z-index: 20; display: flex; flex-direction: column; max-height: calc(100vh - 13rem); background: rgba(5, 4, 4, 0.8); border: 1px solid var(--line); padding: 0.2rem 0; }
+.lib-letters button { background: transparent; border: 0; color: var(--ink); font-size: 0.72rem; line-height: 1; padding: 0.18rem 0.45rem; min-height: 0; cursor: pointer; }
+.lib-letters button:hover, .lib-letters button:focus-visible { background: var(--accent); color: var(--accent-ink); }
+.lib-letters button:disabled { opacity: 0.25; cursor: default; background: transparent; color: var(--ink); }
+
+/* ---- An artist ---- */
+.lib-artist-top { display: flex; align-items: center; gap: 0.9rem; }
+.lib-back { width: 2.3rem; height: 2.3rem; border-radius: 50%; border: 1px solid var(--line-strong); background: transparent; color: var(--ink); display: grid; place-items: center; padding: 0; }
+.lib-crumbs { display: flex; gap: 0.4rem; align-items: center; color: var(--ink-dim); font-size: 0.9rem; }
+.lib-crumb, .lib-link { background: none; border: 0; padding: 0; color: var(--accent); font: inherit; cursor: pointer; }
+.lib-crumb:hover, .lib-link:hover { text-decoration: underline; }
+.lib-artist-heading { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.5rem 0.6rem; margin: 0.3rem 0 0.8rem; }
+.lib-artist-words { display: flex; flex-direction: column; margin-right: 1rem; min-width: 0; }
+.lib-artist-title { margin: 0; font-size: 3.2rem; font-weight: 300; letter-spacing: -0.02em; line-height: 1.05; overflow-wrap: anywhere; }
+.lib-artist-summary { color: var(--ink-dim); font-size: 0.9rem; }
+.lib-selection { position: sticky; top: var(--header-height, 4.5rem); z-index: 6; display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.7rem; padding: 0.5rem 0.8rem; margin-bottom: 0.5rem; background: rgba(40, 22, 10, 0.96); border: 1px solid rgba(232, 134, 71, 0.45); }
+.lib-selection[hidden] { display: none; }
+.lib-selection button { display: inline-flex; align-items: center; gap: 0.35rem; }
+.lib-selection .is-on { color: #ff6b8a; }
+.lib-grow { flex: 1; }
+
+/* No scroll box of its own: that would make the sticky headings stick inside it instead of below the app header. */
+.lib-table-box { min-width: 0; }
+.lib-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 0.9rem; }
+.lib-table thead th { position: sticky; top: calc(var(--header-height, 4.5rem) + var(--lib-selection-height, 0px)); z-index: 4; background: rgba(12, 9, 7, 0.97); border-bottom: 1px solid var(--line-strong); text-align: left; font-weight: 400; padding: 0; }
+.lib-th-album { padding: 0.45rem 0.5rem !important; color: var(--ink-dim); }
+.lib-sort { width: 100%; text-align: inherit; background: transparent; border: 0; color: var(--ink-dim); font: inherit; padding: 0.45rem 0.5rem; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lib-sort:hover { color: var(--ink); background: rgba(255, 255, 255, 0.05); }
+.lib-sort.is-active { color: var(--accent); }
+.lib-table .is-number { text-align: right; }
+.lib-table th.is-number .lib-sort { text-align: right; }
+.lib-album-title th { text-align: left; font-weight: 600; color: var(--accent); padding: 0.9rem 0.5rem 0.3rem; border-bottom: 1px solid var(--line); font-size: 0.95rem; }
+.lib-album-cell { vertical-align: top; padding: 0.45rem 0.9rem 0.6rem 0.5rem; }
+.lib-art { display: grid; place-items: center; width: 8.5rem; aspect-ratio: 1; padding: 0; border: 0; background: #1d1612; box-shadow: 0 3px 10px rgba(0, 0, 0, 0.6); cursor: pointer; overflow: hidden; }
+.lib-album-facts { display: flex; flex-direction: column; gap: 0.1rem; margin-top: 0.45rem; font-size: 0.82rem; color: var(--ink-dim); }
+.lib-album-count { color: var(--ink-faint); }
+.lib-album-actions { display: flex; gap: 0.3rem; margin-top: 0.35rem; }
+.lib-row td { padding: 0.28rem 0.5rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-bottom: 1px solid rgba(255, 255, 255, 0.035); }
+.lib-row td .icon { vertical-align: -2px; margin-left: 0.35rem; }
+.lib-row td .icon-heart { color: #ff6b8a; }
+.lib-row td .icon-flag { color: var(--accent); }
+.lib-row { cursor: default; user-select: none; }
+.lib-row:hover td { background: rgba(255, 255, 255, 0.05); }
+.lib-row.is-selected td { background: rgba(232, 134, 71, 0.22); color: #fff; }
+.lib-row:focus { outline: none; }
+.lib-row:focus-visible td { box-shadow: inset 0 1px 0 var(--accent), inset 0 -1px 0 var(--accent); }
+.lib-filler td { height: 1.85rem; }
+
+/* ---- Columns and sorting ---- */
+.lib-dialog { width: min(46rem, 94vw); }
+.lib-dialog h2 { font-size: 1.8rem; font-weight: 300; margin: 0 0 0.3rem; }
+.lib-col-box { display: grid; grid-template-columns: minmax(0, 1fr) 10rem; gap: 1rem; margin: 0.6rem 0 1rem; }
+.lib-col-list { border: 1px solid var(--line-strong); max-height: 18rem; overflow: auto; padding: 0.3rem 0; }
+.lib-col { display: flex; align-items: center; gap: 0.6rem; padding: 0.3rem 0.8rem; cursor: pointer; }
+.lib-col.is-picked { background: rgba(232, 134, 71, 0.22); }
+.lib-col span:nth-child(2) { flex: 1; }
+.lib-col-width { font-size: 0.78rem; color: var(--ink-faint); }
+.lib-col-side { display: flex; flex-direction: column; gap: 0.5rem; }
+.lib-field { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.85rem; color: var(--ink-dim); margin-bottom: 0.7rem; }
+.lib-check { display: flex; align-items: center; gap: 0.4rem; margin: 0.35rem 0; }
+@media (max-width: 700px) { .lib-col-box { grid-template-columns: 1fr; } }
+
+/* ==== Player bar: one steady row, icons named by tooltips (owner, 2026-11-04) ==== */
+.icon-button { display: inline-grid; place-items: center; width: 2.3rem; height: 2.3rem; padding: 0; border-radius: 50%; background: transparent; border: 1px solid transparent; color: var(--ink); cursor: pointer; }
+.icon-button:hover, .icon-button:focus-visible { border-color: var(--line-strong); background: rgba(255, 255, 255, 0.06); }
+.icon-button:disabled { opacity: 0.35; cursor: default; }
+.icon-button.is-on { color: var(--accent); }
+#player-favorite.is-on { color: #ff6b8a; }
+.player-open { display: flex; align-items: center; gap: 0.7rem; min-width: 0; flex: 0 1 22rem; padding: 0.2rem 0.6rem 0.2rem 0.2rem; background: transparent; border: 1px solid transparent; color: var(--ink); text-align: left; cursor: pointer; font: inherit; }
+.player-open:hover, .player-open:focus-visible { background: rgba(255, 255, 255, 0.06); border-color: var(--line); }
+.player-open .player-cover { width: 3.2rem; height: 3.2rem; object-fit: contain; background: #0b0908; border-radius: 0; }
+.player-open .player-text { min-width: 0; max-width: none; flex: 1; }
+.player-toggles { display: flex; gap: 0.15rem; flex: none; }
+
+/* ---- Library refinements (owner, 2026-11-04) ---- */
+/* Each album's songs are a table of their own beside its cover, lined up with the headings. */
+.lib-album-body > td { padding: 0; vertical-align: top; border: 0; }
+.lib-album-body > .lib-album-cell { padding: 0.45rem 0.9rem 0.8rem 0.5rem; }
+.lib-tracks { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: inherit; }
+/* The letter bar sits at the right edge: keep the page's own controls clear of it. */
+#library-page { padding-right: 2.6rem; }
+/* Quieter buttons: the artist header and the selection bar match the size of the list, not the page titles. */
+.lib-artist-heading button, .lib-selection button, .lib-options {
+  font-size: 0.85rem; font-weight: 600; padding: 0.3rem 0.75rem; min-height: 2rem; border-radius: 2px; gap: 0.35rem;
+}
+.lib-artist-heading { gap: 0.4rem; }
+.lib-selection { padding: 0.3rem 0.7rem; gap: 0.35rem 0.5rem; font-size: 0.88rem; }
+.lib-selection .icon-button, .lib-album-actions .icon-button { width: 2rem; height: 2rem; padding: 0; border-radius: 50%; }
+.lib-selection .icon, .lib-artist-heading .icon { width: 15px; height: 15px; }
+/* The letter bar fills the space between the header and the player bar in one column at any window size. */
+.lib-letters { top: calc(var(--header-height, 4.5rem) + 0.6rem); bottom: calc(var(--player-height, 4.5rem) + 0.6rem); transform: none; max-height: none; flex-wrap: nowrap; justify-content: space-between; overflow: hidden; }
+.lib-letters button { flex: 1 1 0; min-height: 0; font-size: min(0.72rem, 2.1vh); padding: 0 0.45rem; }
+/* Toolbar look: only Play is a filled button; the rest are text and icon, outlined on hover. */
+.lib-artist-heading button.secondary, .lib-selection button.secondary { background: transparent; border-color: transparent; font-weight: 500; }
+.lib-artist-heading button.secondary:hover, .lib-artist-heading button.secondary:focus-visible,
+.lib-selection button.secondary:hover, .lib-selection button.secondary:focus-visible { border-color: var(--line-strong); background: rgba(255, 255, 255, 0.07); }
+.lib-artist-heading button, .lib-selection button { padding: 0.2rem 0.6rem; min-height: 1.8rem; }
+.lib-selection { background: rgba(30, 18, 10, 0.95); border-color: rgba(232, 134, 71, 0.3); }
+.lib-selection strong { font-weight: 600; font-size: 0.85rem; }
+
+/* ---- Right-click menu (desktop) ---- */
+.ctx-menu { position: fixed; z-index: 200; min-width: 13rem; padding: 0.3rem 0; background: #1b1411; border: 1px solid var(--line-strong); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6); font-size: 0.88rem; }
+.ctx-item { display: block; width: 100%; text-align: left; background: transparent; color: var(--ink); border: 0; border-radius: 0; padding: 0.38rem 1.6rem 0.38rem 1.1rem; font: inherit; font-weight: 400; cursor: default; min-height: 0; }
+.ctx-item.is-default { font-weight: 700; }
+.ctx-item:hover:not(:disabled), .ctx-item:focus-visible { background: rgba(232, 134, 71, 0.28); outline: none; }
+.ctx-item:focus { outline: none; background: rgba(232, 134, 71, 0.22); }
+.ctx-item:disabled { color: var(--ink-faint); }
+.ctx-sep { height: 1px; margin: 0.3rem 0.6rem; background: var(--line-strong); }
+.lib-selected-count { font-size: 0.82rem; color: var(--accent); min-height: 1.1em; }
+.lib-props { display: grid; grid-template-columns: 9rem minmax(0, 1fr); gap: 0.35rem 1rem; margin: 0.6rem 0 1rem; font-size: 0.9rem; }
+.lib-props dt { color: var(--ink-dim); }
+.lib-props dd { margin: 0; overflow-wrap: anywhere; }
+/* Oversized images: a heading per group with its Fix button. */
+.gap-group-head { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; margin-top: 1.2rem; }
+.gap-group-head h3 { margin: 0; font-size: 1.05rem; }
+.gap-group-head + .field-hint { margin: 0.2rem 0 0; }
+.inline-check { display: inline-flex; align-items: center; gap: 0.4rem; margin-left: 0.5rem; }
+.gap-table td .row-actions { margin: 0; flex-wrap: nowrap; }
+
+/* ==== One look for every page (owner, 2026-11-05: "the font and page usage style from the library page extended
+   across the other pages", less redundant headings, smaller borders, like Zune / Windows Media Player). ==== */
+/* The library's width for every page, with narrow side margins. */
+main { max-width: 110rem; padding-left: 1.25rem; padding-right: 1.25rem; }
+/* Each page keeps the library's dark panel, now as wide as the library's (it was a narrow column in the middle). */
+/* One large, light, lowercase title per page, as the library's "artists". */
+.page-heading { align-items: center; margin-bottom: 0.2rem; }
+.page-title { margin: 0; font-size: 3rem; font-weight: 300; letter-spacing: -0.02em; text-transform: lowercase; line-height: 1.1; }
+/* Boxes inside a page: a little tighter. */
+main > section.page section, .settings-group, .setup-box { padding: 1rem 1.1rem; }
+/* Boxes inside a page panel do not draw a second dark layer. */
+main > section.page section { background: rgba(255, 255, 255, 0.02); }
+/* Review's section tabs read like the library's links rather than big buttons. */
+.subnav { gap: 0.2rem 1.4rem; border-bottom: 1px solid var(--line); padding-bottom: 0.2rem; margin-bottom: 0.8rem; }
+.subnav-button { background: transparent; border: 0; border-bottom: 2px solid transparent; color: var(--ink-dim); font-size: 1.15rem; font-weight: 400; padding: 0.3rem 0; min-height: 0; text-transform: lowercase; }
+.subnav-button:hover { color: var(--ink); background: transparent; }
+.subnav-button.is-active, .subnav-button[aria-selected="true"] { color: var(--ink); background: transparent; border-bottom-color: var(--accent); }
+/* The library's letter bar is fixed at the window's right edge: keep album and artist names well clear of it. */
+/* The panel stops short of the bar, and long names end in "…" instead of running into the next cover. */
+#library-page, #artist-page { margin-right: 2.4rem; padding-right: 1.5rem; }
+.lib-artist-text { min-width: 0; overflow: hidden; }
+.lib-artist-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The pages read over the collage as the library does: the same darker shade behind every page (Now Playing keeps
+   its own, brighter look). */
+body[data-page="home"] .backdrop-shade,
+body[data-page="rip"] .backdrop-shade,
+body[data-page="review"] .backdrop-shade,
+body[data-page="settings"] .backdrop-shade { background: linear-gradient(to bottom, rgba(0, 0, 0, 0.8), rgba(0, 0, 0, 0.72) 45%, rgba(0, 0, 0, 0.86)); }
+/* The pictures dialog's heading: the album (or song) large and light, its artist and year below. */
+#media-title { font-size: 2rem; font-weight: 300; margin: 0; letter-spacing: -0.01em; }
+.media-subtitle { margin: 0.1rem 0 0.6rem; color: var(--ink-dim); }
+/* Artwork's views (Missing, Low resolution, Oversized images) as quiet links, like Review's sections. */
+.view-links { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 1.2rem; margin: 0.2rem 0 0.8rem; }
+.view-link { background: transparent; border: 0; border-bottom: 2px solid transparent; color: var(--ink-dim); font-size: 1rem; font-weight: 600; padding: 0.2rem 0; min-height: 0; }
+.view-link:hover { background: transparent; color: var(--ink); }
+.view-link.is-active { color: var(--ink); border-bottom-color: var(--accent); }
+.view-links > button:not(.view-link) { margin-left: auto; }
+/* The automatic covers box at the top of Missing and Low resolution. */
+.auto-covers { border: 1px solid var(--line); padding: 0.6rem 0.9rem; margin-bottom: 0.8rem; }
+.auto-covers .row-actions { align-items: center; margin: 0; }
+.auto-covers .field-hint { margin: 0.3rem 0 0; }
+/* Settings' section list in the same voice as Review's sections: lowercase and light, like Zune's settings list. */
+.settings-sections button { font-size: 1.1rem; font-weight: 400; letter-spacing: 0; text-transform: lowercase; padding: 0.35rem 0.6rem; }
+/* Lyrics > To review: the compact list and the timing editor that opens under a song's row (owner, 2026-11-06). */
+.lyrics-review-table td:nth-child(5) { white-space: nowrap; color: var(--ink-dim); }
+.lyrics-review-table td:first-child, .lyrics-missing-table td:first-child { width: 1%; white-space: nowrap; }
+.lyrics-editor-row > td { background: rgba(255, 255, 255, 0.03); padding: 0.6rem 0.8rem 0.8rem; }
+.lyrics-editor-row:hover td { background: rgba(255, 255, 255, 0.03); }
+/* The editor is inside a table cell, and a cell grows to its widest unbreakable content (the candidate list's long entries, the seek bar), which pushed the
+   whole row past the right edge of the window (owner, 2026-11-24). width: 0 with min-width: 100% makes the editor take the cell's width instead of asking for more. */
+.lyrics-editor { outline: none; width: 0; min-width: 100%; box-sizing: border-box; }
+.lyrics-editor .sync-choice, .lyrics-editor .sync-transport { max-width: 100%; }
+.lyrics-editor .row-actions { align-items: center; margin: 0.3rem 0; }
+.lyrics-editor .field-hint { margin: 0.3rem 0; }
+.sync-choice { max-width: 100%; min-width: 0; flex: 1 1 24rem; }
+.sync-clock { font-variant-numeric: tabular-nums; color: var(--ink-dim); min-width: 3.2rem; }
+.sync-lines { list-style: none; margin: 0.3rem 0; padding: 0; max-height: 22rem; overflow-y: auto; border: 1px solid var(--line); position: relative; }
+.sync-line { display: flex; align-items: center; gap: 0.3rem; padding: 0.12rem 0.5rem; border-bottom: 1px solid var(--line); }
+.sync-line.is-break { min-height: 0.7rem; padding: 0; }
+.sync-line.is-current { background: rgba(232, 134, 71, 0.16); }
+.sync-line.is-current .sync-text { color: var(--accent); }
+.gap-table .sync-line button { padding: 0.05rem 0.4rem; font-size: 0.8rem; }
+.sync-time { background: transparent; border: 1px solid var(--line); color: var(--ink-dim); font-variant-numeric: tabular-nums; min-width: 4.6rem; }
+.sync-nudge { background: transparent; border: 1px solid var(--line); color: var(--ink); }
+.sync-text { flex: 1; min-width: 0; padding-left: 0.4rem; }
+
+/* ==== Lighter pages and more colourful covers (owner, 2026-11-06) ==== */
+/* Home, Rip a CD and Settings were two dark layers deep (the shade over the collage and the page's own panel).
+   The page panel is now see-through; the shade alone keeps text readable, helped by a soft black glow behind
+   headings and text. Boxes inside the pages keep a light dark panel so forms stay easy to read. */
+body[data-page="home"] #home-page,
+body[data-page="rip"] #rip-page,
+body[data-page="settings"] #settings-page { background: transparent; border-color: transparent; }
+body[data-page="home"] .backdrop-shade,
+body[data-page="rip"] .backdrop-shade,
+body[data-page="settings"] .backdrop-shade { background: linear-gradient(to bottom, rgba(0, 0, 0, 0.62), rgba(0, 0, 0, 0.5) 45%, rgba(0, 0, 0, 0.7)); }
+#home-page, #rip-page, #settings-page { text-shadow: 0 0 6px rgba(0, 0, 0, 0.95), 0 0 14px rgba(0, 0, 0, 0.8); }
+.page-title { text-shadow: 0 0 10px rgba(0, 0, 0, 0.95), 0 0 24px rgba(0, 0, 0, 0.85), 0 2px 4px rgba(0, 0, 0, 0.9); }
+#rip-page .rip-step, #rip-page .drive-setup, #settings-page .settings-block, #settings-page .settings-group,
+#settings-page .settings-sections, #home-page .setup-box { background: rgba(8, 6, 5, 0.55); }
+#home-page .home-shelf { background: transparent; border-color: transparent; padding-left: 0; padding-right: 0; }
+#home-page .home-tile-play { box-shadow: 0 4px 14px rgba(0, 0, 0, 0.7); }
+/* Buttons and fields don't need the text glow. */
+#home-page button, #rip-page button, #settings-page button, #rip-page input, #settings-page input, #settings-page select, #rip-page select { text-shadow: none; }
+
+/* The collage keeps more of each cover's own colour: a lighter grey-out, and a fainter drifting tint. */
+.backdrop-tile { filter: grayscale(0.35) saturate(0.9) contrast(1.05) brightness(0.62); }
+.backdrop-aurora { opacity: 0.4; }
+.np-tile, .np-tile-library, .np-tile-artist { filter: grayscale(0.35) saturate(0.9) contrast(1.05) brightness(0.55); }
+.np-tile-queue { filter: grayscale(0.25) contrast(1.05) brightness(0.72); }
+.np-aurora { opacity: 0.4; }
+.backdrop-wall { transition: opacity 1.5s ease; }
+.backdrop-wall.is-fading { opacity: 0; }
+
+/* ==== Library tabs, search results and playlists (D74) ==== */
+.lib-pivots { display: flex; gap: 1.4rem; align-items: baseline; }
+.lib-pivot { background: transparent; border: 0; padding: 0; margin: 0; font: inherit; color: var(--ink-faint); cursor: pointer; text-transform: lowercase; min-height: 0; }
+.lib-pivot:hover, .lib-pivot:focus-visible { color: var(--ink-dim); background: transparent; }
+.lib-pivot.is-active { color: var(--ink); }
+.lib-result-heading { font-size: 1.6rem; }
+.lib-result-heading::after { display: none; }
+.lib-result-rule { border: 0; height: 1px; background: var(--line-strong); margin: 1.6rem 0 0.2rem; }
+.lib-album-result .lib-stack-card { inset: 0.4rem; }
+.lib-song-results { max-width: 72rem; }
+.lib-song-results th { text-align: left; font-weight: 400; color: var(--ink-dim); padding: 0.35rem 0.5rem; border-bottom: 1px solid var(--line-strong); }
+.lib-song-results th:nth-child(2) { width: 5rem; }
+.lib-song-results th:nth-child(1) { width: 34%; }
+
+/* Right-click submenus ("Add to playlist ›"). */
+.ctx-item.has-submenu { position: relative; padding-right: 2.2rem; }
+.ctx-item.has-submenu::after { content: "›"; position: absolute; right: 0.8rem; top: 50%; transform: translateY(-52%); font-size: 1.1rem; color: var(--ink-dim); }
+.ctx-item.has-submenu[aria-expanded="true"] { background: rgba(255, 255, 255, 0.08); }
+
+/* Library > Playlists: the playlists down the left, the chosen one's songs on the right. */
+.pl-page { display: grid; grid-template-columns: 15rem minmax(0, 1fr); gap: 1.4rem; align-items: start; margin-top: 0.6rem; }
+@media (max-width: 760px) { .pl-page { grid-template-columns: 1fr; } }
+.pl-side { position: sticky; top: calc(var(--header-height, 4.5rem) + 0.6rem); display: flex; flex-direction: column; gap: 0.5rem; }
+.pl-new { align-self: flex-start; display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; padding: 0.25rem 0.6rem; min-height: 1.9rem; }
+.pl-lists { list-style: none; margin: 0; padding: 0; max-height: calc(100vh - 16rem); overflow-y: auto; }
+.pl-list { display: flex; align-items: baseline; gap: 0.6rem; width: 100%; padding: 0.35rem 0.5rem; background: transparent; border: 0; border-left: 2px solid transparent; color: var(--ink-dim); text-align: left; font: inherit; font-size: 0.95rem; cursor: pointer; min-height: 0; }
+.pl-list:hover, .pl-list:focus-visible { background: rgba(255, 255, 255, 0.06); color: var(--ink); }
+.pl-list.is-active { color: var(--ink); border-left-color: var(--accent); background: rgba(255, 255, 255, 0.05); }
+.pl-list-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pl-list-count { font-size: 0.78rem; color: var(--ink-faint); }
+.pl-head { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.4rem 0.5rem; margin-bottom: 0.3rem; }
+.pl-head > button:not(.icon-button) { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.85rem; font-weight: 600; padding: 0.2rem 0.65rem; min-height: 1.9rem; }
+.pl-head > button.secondary { background: transparent; border-color: transparent; }
+.pl-head > button.secondary:hover { border-color: var(--line-strong); background: rgba(255, 255, 255, 0.07); }
+.pl-title { margin: 0; font-size: 2.4rem; font-weight: 300; letter-spacing: -0.02em; line-height: 1.05; overflow-wrap: anywhere; }
+.pl-note { min-height: 1.2em; margin: 0 0 0.4rem; }
+.pl-table th { text-align: left; font-weight: 400; color: var(--ink-dim); padding: 0.4rem 0.5rem; }
+.pl-col-n { width: 3rem; }
+.pl-col-len { width: 5rem; }
+.pl-col-title { width: 36%; }
+.pl-row.is-missing td { color: var(--ink-faint); font-style: italic; }
+.pl-row.drop-above td { box-shadow: inset 0 2px 0 var(--accent); }
+.pl-row.drop-below td { box-shadow: inset 0 -2px 0 var(--accent); }
+.pl-row[draggable="true"] { cursor: grab; }
+.name-dialog { width: min(28rem, 92vw); }
+.name-dialog input { width: 100%; box-sizing: border-box; }
+.name-warning { min-height: 1.2em; color: #ffb27a; }
+/* Selection and menu highlights follow the chosen highlight colour (they were fixed orange). */
+.lib-row.is-selected td { background: color-mix(in srgb, var(--accent) 24%, transparent); }
+.ctx-item:hover:not(:disabled), .ctx-item:focus-visible { background: color-mix(in srgb, var(--accent) 30%, transparent); }
+.ctx-item:focus { background: color-mix(in srgb, var(--accent) 24%, transparent); }
+.lib-col.is-picked { background: color-mix(in srgb, var(--accent) 24%, transparent); }
+.pl-table th, .lib-song-results th { padding: 0.4rem 0.6rem; }
+.pl-table td, .lib-song-results td { padding-left: 0.6rem; padding-right: 0.6rem; }
+.pl-table th.is-number, .lib-song-results th.is-number { text-align: right; }
+.pl-table td:nth-child(3), .lib-song-results td:nth-child(2) { padding-right: 1.4rem; }
+.pl-table th.pl-col-len, .lib-song-results th:nth-child(2) { padding-right: 1.4rem; }
+
+.accent-swatches { grid-template-columns: repeat(10, 1.9rem); }
+
+/* Settings > Cast: the switch that allows searching the home network (D77). */
+.cast-switch { display: flex; gap: 0.6rem; align-items: flex-start; margin: 0.8rem 0; }
+.cast-switch input { margin-top: 0.3rem; }
+
+.pl-side-buttons { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+
+/* Home like Settings (owner, 2026-11-06): each shelf in the same light panel and thin border as the Settings
+   boxes; no black shadow round the covers and no glow round the text, which looked like an extra black border. */
+#home-page { text-shadow: none; }
+#home-page .page-title { text-shadow: 0 0 10px rgba(0, 0, 0, 0.95), 0 0 24px rgba(0, 0, 0, 0.85), 0 2px 4px rgba(0, 0, 0, 0.9); }
+#home-page .home-shelf, #home-page .home-attention, #home-page > #home-shelves > .field-hint {
+  background: rgba(8, 6, 5, 0.55);
+  border: 1px solid var(--line);
+  padding: 0.9rem 1.1rem 1rem;
+  margin: 0 0 1rem;
+}
+#home-page .home-shelf h3 { margin-top: 0; }
+#home-page .home-tile-play { box-shadow: none; }
+
+/* ==== Library: pinned headings, albums view (owner, 2026-11-06, D85) ==== */
+/* artists · albums · playlists, and an artist page's library › artists › name, stay at the top of the window. */
+.lib-sticky { position: sticky; top: var(--header-height, 4.5rem); z-index: 7; background: rgba(12, 9, 7, 0.96); margin-left: -1rem; margin-right: -1rem; padding: 0.4rem 1rem; }
+.lib-head.lib-sticky { margin-bottom: 0.4rem; border-bottom: 1px solid var(--line); }
+.lib-artist-top.lib-sticky { padding-top: 0.6rem; padding-bottom: 0.6rem; }
+.lib-table thead th { top: calc(var(--header-height, 4.5rem) + var(--lib-bar-height, 0px) + var(--lib-selection-height, 0px)); }
+.lib-selection { top: calc(var(--header-height, 4.5rem) + var(--lib-bar-height, 0px)); }
+.pl-side { top: calc(var(--header-height, 4.5rem) + var(--lib-bar-height, 0px) + 0.6rem); }
+.lib-letter-heading, .lib-album-title { scroll-margin-top: calc(var(--header-height, 4.5rem) + var(--lib-bar-height, 0px) + 0.5rem); }
+.lib-album-title { scroll-margin-top: calc(var(--header-height, 4.5rem) + var(--lib-bar-height, 0px) + 3rem); }
+.lib-crumbs .lib-crumb { color: var(--accent); }
+
+/* Settings > About (D88). */
+.about-heading { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.4rem; }
+.about-emblem { height: 4.4rem; width: auto; }
+.about-wordmark { height: 2.8rem; width: auto; }
+.about-version { color: var(--ink-dim); margin: 0 0 0.8rem; }
+.about-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; margin: 0.8rem 0; }
+.about-actions > p { flex-basis: 100%; margin: 0; }
+
+/* Settings > Jellyfin (D90). */
+.jellyfin-server { border: 1px solid var(--line); border-radius: 8px; padding: 0.6rem 0.8rem; margin: 0.5rem 0; }
+.jellyfin-server.is-default { border-color: var(--accent, #f08a24); }
+.jellyfin-sync { margin: 0.8rem 0; padding: 0.7rem 0.8rem; border-top: 1px solid var(--line); }
+.jellyfin-sync h4 { margin: 0 0 0.4rem; }
+.jellyfin-notes { margin: 0.3rem 0 0.5rem; padding-left: 1.2rem; }
+.jellyfin-step-list { padding-left: 1.4rem; display: grid; gap: 0.5rem; }
+.jellyfin-step-list button { margin: 0 0.3rem; }
+.jellyfin-path { display: inline-block; background: rgba(255, 255, 255, 0.06); padding: 0.1rem 0.4rem; border-radius: 4px; margin: 0.2rem 0.3rem 0.2rem 0; word-break: break-all; }
+.jellyfin-firewall { margin: 0.6rem 0; }
+/* Plain numbered/bulleted text here, not the app's card-like list rows. */
+.jellyfin-settings li { display: list-item; border: 0; padding: 0; font-size: 0.95rem; color: var(--ink-dim); line-height: 1.5; }
+.jellyfin-settings li span { color: inherit; font-size: inherit; }
+.jellyfin-settings [role=status] { margin-top: 0.8rem; }
+.jellyfin-settings > button { margin-top: 0.6rem; }
+.accent-swatch:has(input:disabled) { opacity: 0.35; cursor: default; }
+
+/* Review > Album IDs (D99) */
+.album-ids-row { border: 1px solid var(--border, #444); border-radius: 8px; padding: 10px 12px; margin: 8px 0; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.album-ids-row strong { flex: 1 1 100%; }
+.album-ids-row .field-hint { flex: 1 1 100%; margin: 0; }
+.album-ids-row select { flex: 1 1 240px; min-width: 0; max-width: 100%; }
+
+/* Rip results: how the disc read (D102) */
+.rip-health { border-radius: 10px; padding: 12px 14px; margin: 10px 0; border: 2px solid var(--border, #555); }
+.rip-health-damaged { border-color: #d9534f; background: rgba(217, 83, 79, 0.12); }
+.rip-health-suspect { border-color: #e0a030; background: rgba(224, 160, 48, 0.12); }
+.rip-health-good { border-color: #4caf50; background: rgba(76, 175, 80, 0.10); }
+.rip-health ul { margin: 6px 0 6px 1.2em; }
+
+/* The status line of the outside services (D108 stage 4). */
+.source-status { margin: 0.4rem 0; font-size: 0.8rem; opacity: 0.9; }
+.source-status-title { opacity: 0.7; }
+.source-status-warn { color: #f0c88a; }
+.source-status-bad { color: #f0a0a0; font-weight: 600; }
+
+/* Review > Album IDs > Compare (D111). */
+.cmp-box { flex: 1 1 100%; margin-top: 0.5rem; }
+.cmp-head { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: baseline; margin: 0.4rem 0; }
+.cmp-table { border-collapse: collapse; width: 100%; margin: 0.4rem 0; font-size: 0.85rem; }
+.cmp-table th, .cmp-table td { text-align: left; padding: 0.2rem 0.5rem; border-bottom: 1px solid rgba(255, 255, 255, 0.1); vertical-align: top; }
+.cmp-diff { color: #f0c88a; }
+.cmp-table input[type="checkbox"] { margin-right: 0.35rem; }
+
+/* "Search other sources by name" for an album nothing identified. */
+.ma-table-wrap { overflow-x: auto; padding: 0 0.5rem 0.6rem; }
+.ma-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+.ma-table th { text-align: left; font-weight: 600; color: var(--ink-dim); padding: 0.4rem 0.45rem; border-bottom: 1px solid var(--line-strong); }
+.ma-table td { padding: 0.3rem 0.45rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+.ma-table .ft-old { display: table-cell; }
+.ma-table .ft-new { display: table-cell; }
+.ft-finder { padding: 0.5rem 0.8rem; border-top: 1px solid rgba(255, 255, 255, 0.1); }
+
+/* ---- Now Playing with lyrics: the TV's layout, at desktop size (2026-11-17) ----
+   A small cover and the details at the top, the lyrics across the width below, centred, the current line brighter and a little
+   larger, lines only partly inside the box fading out. The Queue tab keeps the old layout. Time-stamped lyrics are moved by a
+   transform (now-playing.ts: place); plain lyrics are an ordinary list to scroll. */
+.np-lyrics { display: flex; flex-direction: column; overflow: hidden; }
+.np-lyrics[hidden] { display: none; }
+.np-lyrics-view { position: relative; flex: 1; min-height: 0; overflow: hidden; }
+.np-lyrics-view.is-plain { overflow-y: auto; }
+.np-lyrics-view.is-plain #np-lyrics-lines { transform: none !important; }
+#np-lyrics-lines { position: relative; padding: 0.4rem 0; transition: transform 600ms ease-out; }
+.np-lyric-line, .np-lyric-plain { transition: opacity 400ms, color 300ms, transform 300ms; }
+.np-lyric-line.np-out { opacity: 0 !important; }
+
+.now-playing.lyrics-mode .np-tint { background: linear-gradient(to top, rgba(20, 10, 4, 0.94), rgba(30, 14, 6, 0.72) 50%, rgba(20, 10, 4, 0.85)); }
+.now-playing.lyrics-mode .np-info { top: 1rem; bottom: auto; left: 5rem; align-items: center; max-width: calc(100% - 24rem); }
+.now-playing.lyrics-mode .np-cover { width: 7.5rem; height: 7.5rem; border-width: 3px; }
+.now-playing.lyrics-mode .np-info > div { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.1rem 0.9rem; min-width: 0; }
+.now-playing.lyrics-mode .np-artist { font-size: 1.1rem; color: #d9c6b6; }
+.now-playing.lyrics-mode .np-album { font-size: 1.1rem; color: #a99888; }
+.now-playing.lyrics-mode .np-album:not(:empty)::before { content: "·"; margin-right: 0.9rem; }
+.now-playing.lyrics-mode .np-title { order: 3; flex-basis: 100%; margin: 0; font-size: 1.7rem; line-height: 1.2; color: #f0a468; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.now-playing.lyrics-mode .np-side { left: 3rem; right: 3rem; top: 10.5rem; bottom: 6rem; width: auto; }
+.now-playing.lyrics-mode .np-tabs { position: absolute; top: -9.5rem; right: 0; margin: 0; }
+.now-playing.lyrics-mode .np-lyrics { background: none; padding: 0; text-align: center; }
+.now-playing.lyrics-mode .np-lyrics-note { margin: 0 0 0.3rem; text-align: center; }
+.now-playing.lyrics-mode .np-lyric-line, .now-playing.lyrics-mode .np-lyric-plain {
+  max-width: 62rem; margin: 0.1rem auto; padding: 0 1rem; font-size: calc(clamp(1.2rem, 2.7vh, 1.9rem) * var(--np-lyric-scale, 1)); line-height: 1.55; text-shadow: 0 2px 12px rgba(0, 0, 0, 0.9);
+}
+.now-playing.lyrics-mode .np-lyric-line { transform-origin: center; }
+.now-playing.lyrics-mode .np-lyric-line.np-lyric-now { transform: scale(1.06); font-weight: 500; }
+@media (max-width: 900px) {
+  .now-playing.lyrics-mode .np-side { display: flex; }
+  .now-playing.lyrics-mode .np-info { max-width: calc(100% - 7rem); }
+}
+/* The text is always above the wall (its current-album tile has a z-index), and with lyrics showing the wall is a quiet backdrop. */
+.np-info, .np-side, .np-back { z-index: 3; }
+.now-playing.lyrics-mode .np-wall { opacity: 0.5; }
+.now-playing.lyrics-mode .np-tile-current { filter: sepia(1) saturate(1.3) hue-rotate(-12deg) brightness(0.52); box-shadow: none; z-index: 0; }
+.now-playing.lyrics-mode .np-lyric-line { opacity: 0.6; }
+.now-playing.lyrics-mode .np-lyric-line.np-lyric-now { opacity: 1; }
+.lyrics-size-row { display: flex; align-items: center; gap: 0.7rem; max-width: 32rem; }
+.lyrics-size-row input[type=range] { flex: 1; }
+/* ---- Lyrics page (owner, 2026-11-18): the two step cards, the info windows and the review list ---- */
+.lyrics-steps { display: grid; gap: 0.75rem; grid-template-columns: minmax(0, 1fr); margin: 0 0 1rem; }
+.lyrics-step { border: 1px solid var(--line, #805542); border-radius: 0.5rem; padding: 0.7rem 0.9rem; display: grid; gap: 0.5rem; align-content: start; }
+.lyrics-step-title { display: flex; align-items: center; gap: 0.4rem; }
+.lyrics-step-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; }
+.lyrics-step-controls select { max-width: 100%; }
+/* The tick boxes of a step stand one under the other, whatever the width of the window. */
+.lyrics-step-options { display: flex; flex-direction: column; align-items: flex-start; gap: 0.35rem; margin-top: 0.5rem; }
+.lyrics-step p { margin: 0; }
+.info-button { background: none; border: 1px solid transparent; border-radius: 50%; color: inherit; cursor: pointer; font-size: 1.1rem; line-height: 1; padding: 0.1rem 0.35rem; opacity: 0.8; }
+.info-button:hover, .info-button:focus-visible { opacity: 1; border-color: currentColor; }
+.info-dialog { width: min(40rem, 92vw); max-height: 85vh; overflow: auto; }
+.info-dialog h2 { margin: 0 0 0.5rem; font-size: 1.25rem; }
+.info-dialog h3 { margin: 1rem 0 0.25rem; font-size: 1rem; }
+.info-dialog p, .info-dialog ul { margin: 0.35rem 0; line-height: 1.45; }
+.info-dialog ul { padding-left: 1.2rem; }
+.info-dialog .dialog-actions { margin-top: 1rem; }
+.cover-badge { display: inline-block; margin-left: 0.4rem; padding: 0 0.4rem; border: 1px solid currentColor; border-radius: 0.6rem; font-size: 0.8em; opacity: 0.85; }
+.sync-edit { min-width: 12rem; max-width: 100%; }
+
+/* The editable album table on the Rip page (owner, 2026-11-20): like the tag editor's album view. */
+.rip-album-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: 0.6rem; margin: 0.6rem 0; }
+.rip-album-field { display: flex; flex-direction: column; gap: 0.15rem; }
+.rip-album-table { width: 100%; border-collapse: collapse; margin-top: 0.6rem; }
+.rip-album-table th { text-align: left; font-weight: 600; padding: 0.25rem 0.4rem; }
+.rip-album-table td { padding: 0.15rem 0.4rem; }
+.rip-album-table td input[type="text"], .rip-album-table td input:not([type]) { width: 100%; }
+.rip-album-number, .rip-album-length { white-space: nowrap; color: var(--muted, inherit); }
+.rip-changed { outline: 2px solid #e0a030; outline-offset: -1px; }
+.rip-differs { border-left: 3px solid #e0a030; padding-left: 0.6rem; margin: 0.5rem 0; }
+.rip-paste { margin-top: 0.8rem; }
+.rip-paste textarea { width: 100%; }
+
+/* Lyrics page: the steps one under the other and in order (owner, 2026-11-20); nothing may run over its neighbour. */
+.lyrics-step { min-width: 0; }
+.lyrics-step select, .lyrics-step input[type="search"] { max-width: 100%; }
+.lyrics-substep > summary { cursor: pointer; font-weight: 600; }
+.lyrics-substep[open] > summary { margin-bottom: 0.6rem; }
+.lyrics-step-four { margin: 1.2rem 0 0.4rem; }
+.lyrics-step-four h3 { margin: 0 0 0.3rem; }
+.lyric-photos-table { width: 100%; }
+.lyric-photos-table select { width: 100%; max-width: 32rem; }
+.lyric-photo-list { display: flex; flex-direction: column; gap: 0.4rem; margin: 0.4rem 0 0.8rem; }
+.lyric-photo-row { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+.lyric-photo-thumb { width: 150px; height: 112px; object-fit: contain; display: block; background: rgba(128, 128, 128, 0.18); border-radius: 4px; }
+.lyric-photo-thumb-button { padding: 0; border: 1px solid var(--line, #805542); background: none; cursor: zoom-in; border-radius: 4px; }
+dialog.photo-preview { width: min(96vw, 100rem); height: 94vh; max-width: none; max-height: none; padding: 0.6rem; border: 1px solid var(--line, #805542); border-radius: 0.6rem; background: var(--panel, #14100e); color: inherit; }
+dialog.photo-preview[open] { display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 0.6rem; }
+dialog.photo-preview::backdrop { background: rgba(0, 0, 0, 0.75); }
+.photo-preview-bar { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+.photo-preview-image { width: 100%; height: 100%; object-fit: contain; min-height: 0; }
+
+/* The lyrics editor window: the booklet page beside a large, easy-to-read editor. */
+dialog.lyric-editor { width: min(96vw, 110rem); height: 92vh; max-width: none; max-height: none; padding: 0; border: 1px solid var(--line, #805542); border-radius: 0.6rem; background: var(--panel, #14100e); color: inherit; }
+dialog.lyric-editor[open] { display: grid; grid-template-rows: auto minmax(0, 1fr); }
+dialog.lyric-editor::backdrop { background: rgba(0, 0, 0, 0.7); }
+.lyric-editor-top { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 0.7rem 1rem; border-bottom: 1px solid var(--line, #805542); flex-wrap: wrap; }
+.lyric-editor-titles { display: grid; gap: 0.1rem; min-width: 0; }
+.lyric-editor-title { margin: 0; font-size: 1.3rem; }
+.lyric-editor-nav { display: flex; gap: 0.5rem; }
+.lyric-editor-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0; min-height: 0; }
+.lyric-editor-picture { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; border-right: 1px solid var(--line, #805542); }
+.lyric-editor-tools { display: flex; align-items: center; gap: 0.6rem; padding: 0.4rem 0.8rem; }
+.lyric-editor-scroll { overflow: auto; padding: 0.5rem 0.8rem 1rem; min-height: 0; }
+.lyric-editor-scroll img { display: block; height: auto; border-radius: 0.3rem; }
+.lyric-editor-text { display: grid; grid-template-rows: minmax(0, 1fr) auto; min-height: 0; padding: 0.6rem 0.8rem; gap: 0.4rem; }
+textarea.lyric-editor-area { width: 100%; height: 100%; resize: none; box-sizing: border-box; font-family: "Segoe UI", Georgia, "Times New Roman", serif; font-size: 1.3rem; line-height: 1.65; padding: 0.8rem 1rem; white-space: pre-wrap; }
+@media (max-width: 62rem) { .lyric-editor-body { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) minmax(0, 1fr); } .lyric-editor-picture { border-right: 0; border-bottom: 1px solid var(--line, #805542); } }
+/* The lyrics timing editor (D169): a word-processor-like area, a time and a "now" button at the start of each line. */
+.te { margin: 0.3rem 0; padding: 0.2rem 0; max-height: 26rem; min-height: 6rem; overflow-y: auto; border: 1px solid var(--line); position: relative; outline: none; cursor: text; }
+.te:focus-within { border-color: var(--accent); }
+.te-row { display: flex; align-items: baseline; gap: 0.4rem; padding: 0.1rem 0.5rem; }
+.te-row.is-current { background: rgba(232, 134, 71, 0.16); }
+.te-row.is-current .te-words { color: var(--accent); }
+.te-gutter { display: inline-flex; gap: 0.3rem; flex: none; min-width: 8.6rem; user-select: none; -webkit-user-select: none; cursor: default; }
+.te-gutter button { padding: 0.05rem 0.4rem; font-size: 0.8rem; }
+.te-words { flex: 1; min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; min-height: 1.3em; }
+.te-row:not(.is-timed) .sync-time { color: var(--ink-dim); opacity: 0.7; }
+/* A line timed by hand (the Lyric AI keeps it where it is): its time is marked with the accent colour (D172). */
+.te-row.is-mine .sync-time { border-color: var(--accent); color: var(--accent); }
+.sync-transport { align-items: center; }
+.sync-transport .sync-seek { flex: 1 1 14rem; min-width: 8rem; accent-color: var(--accent); }
+.sync-transport .sync-clock { min-width: 6.6rem; text-align: center; }
+dialog.lyric-song-editor { width: min(96vw, 64rem); max-height: 92vh; padding: 1rem 1.2rem; overflow-y: auto; }
+dialog.lyric-song-editor::backdrop { background: rgba(0, 0, 0, 0.6); }
+dialog.lyric-song-editor h2 { margin-top: 0; }
+
+/* The Jellyfin server alone as the library (D173): playing and casting only, so what needs files is not shown. */
+body[data-library="jellyfin"] .nav-button[data-page="rip"],
+body[data-library="jellyfin"] #review-badge,
+body[data-library="jellyfin"] #home-setup,
+body[data-library="jellyfin"] #choose-folder,
+body[data-library="jellyfin"] .subnav-button:not([data-review="flagged"]),
+body[data-library="jellyfin"] [data-settings-section="tags"],
+body[data-library="jellyfin"] [data-settings-section="rip"],
+body[data-library="jellyfin"] [data-settings-section="lyrics"],
+body[data-library="jellyfin"] [data-settings-section="review"] { display: none; }
+
+/* ---- The player bar's own controls (owner, 2026-11-23): round play button, a thin progress bar in the accent colour, times, volume: as on the TV ---- */
+.player-bar .player-play { width: 2.7rem; height: 2.7rem; padding: 0; border-radius: 50%; border: 2px solid var(--accent); background: transparent; color: var(--accent); display: grid; place-items: center; flex: none; }
+.player-bar .player-play svg { width: 20px; height: 20px; }
+.player-bar .player-play:hover, .player-bar .player-play:focus-visible { background: var(--accent); color: var(--accent-ink); }
+.player-bar.is-loading .player-play { opacity: 0.5; }
+.player-transport { display: flex; align-items: center; gap: 0.7rem; flex: 1 1 20rem; min-width: 10rem; }
+.player-time { font-variant-numeric: tabular-nums; color: var(--ink-dim); font-size: 0.9rem; min-width: 2.8rem; text-align: center; flex: none; }
+.player-seek, .player-volume, .sync-seek { -webkit-appearance: none; appearance: none; background: transparent; height: 1.3rem; margin: 0; padding: 0; cursor: pointer; --fill: 0%; }
+.player-seek, .sync-seek { flex: 1 1 auto; min-width: 5rem; }
+.player-volume { width: 6rem; flex: none; }
+.player-seek:disabled { cursor: default; opacity: 0.6; }
+.player-seek::-webkit-slider-runnable-track, .player-volume::-webkit-slider-runnable-track, .sync-seek::-webkit-slider-runnable-track { height: 6px; border-radius: 3px; background: linear-gradient(to right, var(--accent) var(--fill), var(--line) var(--fill)); }
+.player-seek::-webkit-slider-thumb, .player-volume::-webkit-slider-thumb, .sync-seek::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; margin-top: -4px; border-radius: 50%; border: 0; background: var(--accent); transform: scale(0); transition: transform 0.12s; }
+.player-seek:hover::-webkit-slider-thumb, .player-seek:focus-visible::-webkit-slider-thumb, .player-volume:hover::-webkit-slider-thumb, .player-volume:focus-visible::-webkit-slider-thumb, .sync-seek:hover::-webkit-slider-thumb, .sync-seek:focus-visible::-webkit-slider-thumb { transform: scale(1); }
+.player-seek:focus-visible, .player-volume:focus-visible, .sync-seek:focus-visible { outline: none; }
+#player-mute { flex: none; }
+@media (max-width: 1050px) { .player-volume { width: 4rem; } }
+
+/* Settings > Sound: the ten equalizer bands, each a vertical slider with its frequency underneath (2026-11-23). */
+.eq-bands { display: flex; gap: 0.6rem; align-items: flex-end; margin: 0.8rem 0; }
+.eq-band { display: flex; flex-direction: column; align-items: center; gap: 0.35rem; }
+.eq-band input[type="range"] { writing-mode: vertical-lr; direction: rtl; width: 1.6rem; height: 8rem; accent-color: var(--accent, #e2793a); }
+
+/* Settings > Organise: the preview lists (2026-11-23). */
+.organize-list { margin: 0.8rem 0; }
+.organize-list summary { cursor: pointer; font-weight: 600; }
+.organize-row { margin: 0.15rem 0 0.15rem 1rem; font-size: 0.85rem; overflow-wrap: anywhere; }
+.organize-dup { margin: 0.6rem 0 0.6rem 1rem; }
+.organize-compare { border-collapse: collapse; font-size: 0.8rem; margin: 0.3rem 0; width: 100%; }
+.organize-compare th, .organize-compare td { padding: 0.2rem 0.5rem; text-align: left; vertical-align: top; border-bottom: 1px solid rgba(128, 128, 128, 0.25); }
+.organize-compare th { font-weight: 600; opacity: 0.75; }
+.organize-compare .organize-path { overflow-wrap: anywhere; max-width: 28rem; }
+
+/* Smart playlists (2026-11-23). */
+.smart-pane { padding: 0.5rem 0.2rem; }
+.smart-name { font-size: 1.2rem; flex: 1; min-width: 0; }
+.smart-sentence { margin: 0.7rem 0 0.4rem; }
+.smart-rules { margin: 0.3rem 0 0.8rem; }
+.smart-rule { display: flex; gap: 0.4rem; align-items: center; margin: 0.35rem 0; flex-wrap: wrap; }
+.smart-rule input[type="text"], .smart-rule input[type="number"] { min-width: 9rem; }
+.organize-apply { margin: 0.8rem 0; }
+.organize-sure { border: 1px solid var(--accent, #e2793a); padding: 0.8rem 1rem; margin: 0.6rem 0; max-width: 44rem; }
+.organize-sure button { margin-right: 0.6rem; }
+.progress-bar { margin: 0.5rem 0; }
+.progress-bar progress { width: 100%; height: 0.7rem; accent-color: var(--accent, #e2793a); }

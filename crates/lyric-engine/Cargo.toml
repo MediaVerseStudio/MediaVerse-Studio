@@ -1,0 +1,14 @@
+[package]
+name = "mediaverse_lyric_engine"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+# Lyric AI runtime (docs/lyric-ai-plan.md): decoding-free audio processing and the ONNX models (vocal separation, letter reading) that feed
+# mediaverse_lyric_ai. ONNX Runtime itself is loaded at run time from a download (never shipped in the installer): `load-dynamic`.
+# ort and rustfft approved by the owner 2026-11-17 (ort: MIT or Apache-2.0; rustfft: MIT or Apache-2.0).
+[dependencies]
+mediaverse_lyric_ai = { path = "../lyric-ai" }
+ort = { version = "=2.0.0-rc.10", default-features = false, features = ["load-dynamic", "std"] }
+rustfft = "6"
+serde_json = "1"

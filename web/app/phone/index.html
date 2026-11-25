@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="dark" />
+    <title>MediaVerse Studio</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <div id="backdrop" aria-hidden="true"><img id="backdrop-image" alt="" /></div>
+
+    <!-- First run: the app may read the music on the phone only once allowed. -->
+    <section id="welcome" class="screen welcome" hidden>
+      <p class="eyebrow">MEDIAVERSE STUDIO</p>
+      <h1 id="welcome-title">Your music, on your phone</h1>
+      <p id="welcome-text" class="hint">MediaVerse Studio plays the music stored on this phone. Allow it to read your music to begin.</p>
+      <button id="welcome-go" class="primary" type="button">Allow access to music</button>
+    </section>
+
+    <section id="browse" class="screen" hidden>
+      <header class="top">
+        <div class="top-row">
+          <span class="brand">MediaVerse</span>
+          <button id="search-open" class="icon-only" type="button" aria-label="Search" title="Search"></button>
+        </div>
+        <!-- The TV app's order (owner, 2026-11-04), without Now playing: the bar at the bottom opens it. -->
+        <nav id="tabs" class="tabs" aria-label="Library">
+          <button class="tab" type="button" data-tab="artists">Artists</button>
+          <button class="tab" type="button" data-tab="genres">Genres</button>
+          <button class="tab" type="button" data-tab="albums">Albums</button>
+          <button class="tab" type="button" data-tab="songs">Songs</button>
+          <button class="tab" type="button" data-tab="favorites">Favorites</button>
+          <button class="tab" type="button" data-tab="playlists">Playlists</button>
+          <button class="tab" type="button" data-tab="queue">Queue</button>
+          <button class="tab" type="button" data-tab="settings">Settings</button>
+        </nav>
+        <div id="search-bar" class="search-bar" hidden>
+          <button id="search-close" class="icon-only" type="button" aria-label="Close search" title="Close search"></button>
+          <input id="search-input" type="search" placeholder="Artists, albums, songs" autocomplete="off" enterkeyhint="search" />
+        </div>
+      </header>
+      <main id="view" class="view"></main>
+      <nav id="letters" class="letters" aria-label="Jump to a letter" hidden></nav>
+    </section>
+
+    <!-- The same bar on every page; its cover and song details open Now Playing. -->
+    <footer id="mini" class="mini" hidden>
+      <div class="mini-progress"><div id="mini-bar"></div></div>
+      <button id="mini-open" class="mini-open" type="button" aria-label="Open Now Playing">
+        <img id="mini-cover" alt="" />
+        <span class="mini-text"><span id="mini-title"></span><span id="mini-artist"></span><span id="mini-up-next"></span></span>
+      </button>
+      <button id="mini-previous" class="icon-only" type="button"></button>
+      <button id="mini-play" class="icon-only" type="button"></button>
+      <button id="mini-next" class="icon-only" type="button"></button>
+    </footer>
+
+    <section id="playing" class="screen playing" hidden>
+      <div class="np">
+        <div class="np-head">
+          <button id="np-close" class="icon-only" type="button" aria-label="Close Now Playing" title="Close"></button>
+          <span class="np-from" id="np-from">Now playing</span>
+          <button id="np-tv" class="icon-only" type="button" hidden></button>
+        </div>
+        <div class="np-art" id="np-art-wrap">
+          <img id="np-cover" class="np-cover" alt="" />
+          <canvas id="np-vis" class="np-vis" width="720" height="240" aria-hidden="true"></canvas>
+          <div id="np-lyrics-box" class="np-lyrics" hidden aria-live="off"></div>
+        </div>
+        <div class="np-info">
+          <div class="np-info-text">
+            <h1 id="np-title"></h1>
+            <p id="np-artist"></p>
+            <p id="np-album"></p>
+          </div>
+          <button id="np-flag" class="icon-only" type="button"></button>
+          <button id="np-favorite" class="icon-only" type="button"></button>
+        </div>
+        <div class="np-time">
+          <input id="np-seek" class="np-seek" type="range" min="0" max="1000" value="0" aria-label="Position in the song" />
+          <div class="np-clock"><span id="np-elapsed"></span><span id="np-duration"></span></div>
+        </div>
+        <div class="np-controls">
+          <button id="np-shuffle" class="icon-only" type="button"></button>
+          <button id="np-previous" class="icon-only" type="button"></button>
+          <button id="np-play" class="icon-only np-main" type="button"></button>
+          <button id="np-next-button" class="icon-only" type="button"></button>
+          <button id="np-repeat" class="icon-only" type="button"></button>
+        </div>
+        <div id="np-volume-row" class="np-volume" hidden>
+          <span id="np-volume-label">Volume on the device</span>
+          <input id="np-volume" class="np-seek" type="range" min="0" max="100" value="50" aria-label="Volume on the TV or speaker" />
+        </div>
+        <div class="np-extras"><button id="np-lyrics" class="link" type="button">Lyrics</button><button id="np-sleep" class="link" type="button">Sleep timer</button><button id="np-eq" class="link" type="button">Equalizer</button><button id="np-ab" class="link" type="button">A-B repeat</button><button id="np-bookmarks" class="link" type="button">Bookmarks</button></div>
+        <p id="np-next" class="np-next"></p>
+      </div>
+    </section>
+
+    <div id="sheet" class="sheet" hidden>
+      <div class="sheet-box" role="menu">
+        <p id="sheet-title" class="sheet-title"></p>
+        <div id="sheet-buttons" class="sheet-buttons"></div>
+      </div>
+    </div>
+    <!-- A TV asks to pair: the code to type on the TV, over whatever page is open. -->
+    <div id="pair-modal" class="pair-modal" hidden>
+      <div class="pair-box" role="alertdialog" aria-labelledby="pair-title">
+        <p class="eyebrow">PAIR WITH THE TV</p>
+        <h2 id="pair-title"></h2>
+        <p class="hint">Type this code on the TV:</p>
+        <p id="pair-code" class="pair-code"></p>
+        <p id="pair-left" class="hint"></p>
+      </div>
+    </div>
+    <div id="toast" class="toast" role="status" hidden></div>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

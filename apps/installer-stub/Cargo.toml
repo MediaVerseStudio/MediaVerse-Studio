@@ -1,0 +1,13 @@
+[package]
+name = "mediaverse_setup_stub"
+description = "Self-extracting setup program: unpacks the zip appended to itself and runs the install script inside it."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "mediaverse-setup-stub"
+path = "src/main.rs"
+
+# Standard library only: nothing to review or approve.
+[dependencies]

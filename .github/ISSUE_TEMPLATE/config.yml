@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Join the beta test
+    url: https://mediaverse.studio/#beta
+    about: Help test MediaVerse Studio on Windows, Android and Samsung TVs
+  - name: Private security report
+    url: mailto:contact@mediaverse.studio?subject=Security
+    about: Please do not report vulnerabilities in public issues

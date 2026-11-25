@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- MediaVerse Studio program icon, simplified from brand/mediaverse-logo.jpg: the copper record, the
+       waveform through it and the teal band. Drawn for 48 px and up; icon-small.svg is the 16-32 px version. -->
+  <defs>
+    <radialGradient id="tile" cx="50%" cy="38%" r="75%">
+      <stop offset="0" stop-color="#22150e"/>
+      <stop offset="1" stop-color="#060404"/>
+    </radialGradient>
+    <linearGradient id="copper" x1="0.15" y1="0.1" x2="0.85" y2="0.95">
+      <stop offset="0" stop-color="#f6a46a"/>
+      <stop offset="0.45" stop-color="#c8622f"/>
+      <stop offset="1" stop-color="#6e2c12"/>
+    </linearGradient>
+    <linearGradient id="label" x1="0.2" y1="0.1" x2="0.8" y2="0.9">
+      <stop offset="0" stop-color="#ffb47c"/>
+      <stop offset="1" stop-color="#c25a26"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="240" height="240" rx="52" fill="url(#tile)"/>
+  <rect x="8.75" y="8.75" width="238.5" height="238.5" rx="51.25" fill="none" stroke="#5b3b2e" stroke-width="1.5"/>
+  <!-- record -->
+  <circle cx="128" cy="128" r="86" fill="url(#copper)"/>
+  <g fill="none" stroke="#4a1c0a" stroke-opacity="0.55" stroke-width="2.2">
+    <circle cx="128" cy="128" r="78"/>
+    <circle cx="128" cy="128" r="69"/>
+    <circle cx="128" cy="128" r="60"/>
+    <circle cx="128" cy="128" r="51"/>
+    <circle cx="128" cy="128" r="42"/>
+  </g>
+  <!-- teal band, lower left to upper right, under the label -->
+  <path d="M58 198 L198 58" stroke="#0b0706" stroke-width="22" stroke-linecap="round"/>
+  <path d="M58 198 L198 58" stroke="#5fa8a0" stroke-width="12" stroke-linecap="round"/>
+  <!-- waveform, out of the label to both sides -->
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M22 128 H46 L54 112 L62 150 L70 96 L78 160 L86 106 L94 140 L100 128 H104" stroke="#0b0706" stroke-width="13"/>
+    <path d="M152 128 H156 L162 116 L170 152 L178 98 L186 158 L194 110 L202 144 L210 128 H234" stroke="#0b0706" stroke-width="13"/>
+    <path d="M22 128 H46 L54 112 L62 150 L70 96 L78 160 L86 106 L94 140 L100 128 H104" stroke="#ffc08e" stroke-width="6"/>
+    <path d="M152 128 H156 L162 116 L170 152 L178 98 L186 158 L194 110 L202 144 L210 128 H234" stroke="#ffc08e" stroke-width="6"/>
+  </g>
+  <!-- label -->
+  <circle cx="128" cy="128" r="27" fill="url(#label)" stroke="#2a1208" stroke-width="5"/>
+  <circle cx="128" cy="128" r="16" fill="none" stroke="#8a3a16" stroke-width="2"/>
+  <circle cx="128" cy="128" r="6.5" fill="#100806"/>
+</svg>
