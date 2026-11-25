@@ -3,6 +3,10 @@
 `.github/workflows/ci.yml` runs every automated test on a clean Windows machine when code is pushed to `main` or `develop`, **or when a pull request into `main` is opened or updated** (added 2026-11-19, so a long-lived branch is tested once, when it is about to be merged, without spending
 Windows minutes on every push to it), for documentation-only changes too (since the repository went public on 2026-11-25 the runners are free, and the required "test" check must always report), or when started by hand from the Actions tab.
 
+> **Paused (2026-11-25 to 2026-12-01):** GitHub Actions is switched off on this repository because the organisation's Actions allowance for the month is used up. Run the tests on your own computer instead (cargo fmt --all --check, cargo test --workspace, and in web/app 
+pm test and 
+pm run test:electron); the owner merges pull requests by hand meanwhile. It is switched on again when the allowance renews (see 'Turning it back on' below).
+
 ## What it runs
 Rust: `cargo fmt --all --check` first (standard rustfmt, no config file; fails in seconds if anything is unformatted, fix it with
 `cargo fmt --all`), then `cargo test --workspace`. Web: `npm ci`, `npm test`, `npm run build`, `npm run test:electron`.
@@ -50,3 +54,7 @@ the measured run times (times two) rather than the billing page's figure until t
 Settings of the organisation, Billing and plans, shows monthly Actions minutes (needs organisation owner access;
 the command-line token used here does not have that permission). Each run's duration is also listed in the Actions
 tab, and `gh run list --json` reports it; multiply Windows minutes by two.
+
+## Turning it back on
+
+Settings > Actions > General > Actions permissions > *Allow all actions and reusable workflows* (or, from a terminal, `gh api -X PUT repos/MediaVerseStudio/MediaVerse-Studio/actions/permissions -F enabled=true`). Standard runners are free for a public repository, but the organisation's own allowance and spending limit still show on its Billing page, so look there first. A manual run (*workflow_dispatch*) and every push and pull request start a Windows job of about ten minutes, which counts double on a private repository: do not start runs needlessly.
