@@ -193,7 +193,7 @@ licence). Do not switch to a beta. Adopting a new version is a dependency change
 4.0 (the one we ship); 4.1 beta 1 is a pre-release (security hardening on by default, run-time SIMD speedups, fixes
 for mono interleaved encoding, ATH masking and float WAV/AIFF loudness). Nothing to adopt yet; wait for a stable 4.1.
 
-**Owner's to-dos:** GitHub Sponsors link (for the README and website); Google Play Console and Samsung Seller
+**Owner's to-dos:** (no GitHub Sponsors, decided 2026-11-25); Google Play Console and Samsung Seller
 Office when ready (`docs/casting-plan.md` and D79-D81 for the account notes).
 
 **Done 2026-11-04 (D51 to D56):** Fix tags writes on the owner's command, page by page, with undo; suggestions

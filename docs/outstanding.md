@@ -90,7 +90,7 @@ server so it follows the new spelling.
 
 **Project and release**
 - **LAME:** check for a stable release newer than 4.0 now and then (4.1 beta 1 seen 2026-11-10; do not adopt a beta).
-- **Owner's to-dos:** GitHub Sponsors link (README and website); Google Play Console and Samsung Seller Office when
+- **Owner's to-dos:** (no GitHub Sponsors: the owner decided on 2026-11-25 not to set it up unless the project grows, because of the tax reporting); Google Play Console and Samsung Seller Office when
   ready; repo is still private; builds are unsigned; share the Setup and its source bundle together (GPL).
 - The folder `Developer\_old` may be deleted by the owner (planned); the repo folder is `Developer\MediaVerse\MediaVerse-Studio`,
   installers in `Developer\MediaVerse\Installers`.

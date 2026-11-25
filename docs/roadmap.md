@@ -98,7 +98,7 @@ The repository is private and is planned to open very soon. These must be true f
 3b. Turn on **branch protection** for `main` (Settings > Branches: require a pull request, require the CI check "test", no force pushes or deletions; the free plan offers it only once the repository is public) and make `develop` the branch pull requests start from. Add the issues link to the website's Support page (`https://github.com/MediaVerseStudio/MediaVerse-Studio/issues/new/choose`).
 4. Fill in the repository's About box (description, website `https://mediaverse.studio`, topics: music-player, cd-ripper, lyrics, jellyfin, chromecast, electron, rust, tizen) and pin the Releases page.
 5. Website repository: add the link to the public repository (see its README, "Before the application's repository goes public"), change the "moving to a public GitHub repository" sentence, commit and push.
-6. Apply to the **SignPath Foundation** (needs the public repository), add the GitHub Sponsors link to the README and the website when it exists, and start the beta (`docs/beta-testing.md`: Windows first, then the Google Play closed test).
+6. Apply to the **SignPath Foundation** (needs the public repository), and start the beta (there is no GitHub Sponsors link: decided 2026-11-25 to set none up unless the project grows) (`docs/beta-testing.md`: Windows first, then the Google Play closed test).
 7. Build the two Windows downloads from the released commit with `tools\make-installer.ps1`, publish them as a GitHub Release with their SHA-256 files and the source bundle.
 **Privacy and the repository** (`tools/check-before-public.ps1` is the check; `docs/release-checklist.md` item 6)
 - [x] Commit metadata: the public repository starts from one snapshot commit with no earlier history (decided 2026-11-25, D200), so nothing from the old history, including what GitHub keeps reachable through its pull-request refs, is published; the old repository is kept private as an archive.
@@ -123,7 +123,7 @@ The repository is private and is planned to open very soon. These must be true f
 **Services and accounts** (rules in `docs/architecture/0006-disc-metadata-lookup.md`)
 - [ ] MusicBrainz: user agent with a contact address (project address in Settings, not in the program); AcoustID: application registered at the released version; gnudb:
   registration; LRCLIB: polite pace and user agent. Never scrape Genius, AZLyrics, Musixmatch, Amazon, Bandcamp or Discogs images; never download the LRCLIB dump.
-- [ ] Project accounts in place: GitHub organisation, Google account for the Cast registration, GitHub Sponsors link in the README and website (**owner**).
+- [ ] Project accounts in place: GitHub organisation, Google account for the Cast registration. GitHub Sponsors is deliberately not set up (owner, 2026-11-25: its tax reporting would outweigh the income for now).
 
 **People**
 - [ ] README (status paragraph and screenshots), `CONTRIBUTING.md`, issue templates, a security contact; the website repository (`mediaverse.studio`) and its receiver page.

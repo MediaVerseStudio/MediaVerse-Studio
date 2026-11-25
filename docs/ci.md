@@ -1,7 +1,7 @@
 # Continuous integration (GitHub Actions)
 
 `.github/workflows/ci.yml` runs every automated test on a clean Windows machine when code is pushed to `main` or `develop`, **or when a pull request into `main` is opened or updated** (added 2026-11-19, so a long-lived branch is tested once, when it is about to be merged, without spending
-Windows minutes on every push to it), not for documentation-only changes, or when started by hand from the Actions tab.
+Windows minutes on every push to it), for documentation-only changes too (since the repository went public on 2026-11-25 the runners are free, and the required "test" check must always report), or when started by hand from the Actions tab.
 
 ## What it runs
 Rust: `cargo fmt --all --check` first (standard rustfmt, no config file; fails in seconds if anything is unformatted, fix it with
@@ -36,7 +36,7 @@ work: GitHub's machines vary in speed), so it cost about **22 minutes**. It save
 |---|---|---|
 | Nothing cached (measured twice: 5.5 and 10.75 minutes; machine speed varies) | 5.5 to 11 minutes | about 12 to 22 |
 | Later run with a build cache (estimate) | about 2 to 4 minutes | about 6 to 10 |
-| Documentation-only push | skipped | 0 |
+| Documentation-only push | runs like any other (free on a public repository) | 0 |
 
 At about 4 code pushes a day on 20 working days, expect roughly **500 to 1,000** of the 2,000 minutes a month
 (25 to 50 per cent). The GitHub API does not report billable minutes for this private repository, so keep using
