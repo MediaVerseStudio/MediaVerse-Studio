@@ -32,7 +32,7 @@ Google TV / Chromecast owners are asked to try Google Cast from the PC and the p
 
 ## Feedback and records
 
-- One feedback route for testers: e-mail `contact@mediaverse.studio` at first, then GitHub issues with the **Beta feedback** template once the repository is public. Never publish a tester's address or name without asking.
+- One feedback route for testers: GitHub issues with the **Beta feedback** template (the repository is public since 2026-11-25), so reports are searchable and others can help. E-mail is only for what must not be public, such as the Google account address needed to join the Google Play closed test. Never publish a tester's address or name without asking.
 - A private log (outside the repository) with: date, tester initials, device and version, what happened, severity, and what was done (fixed in build N, not reproducible, decided against). It doubles as the evidence Google asks for.
 - Each beta build is announced to testers with a plain list of what changed and what to look at.
 - **Crash and privacy:** the program sends nothing home. Testers are asked to describe problems; the Settings > About page shows the version and commit to quote.

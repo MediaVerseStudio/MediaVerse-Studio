@@ -4,7 +4,7 @@ MediaVerse Studio is a desktop, phone and TV application that runs on your own d
 
 ## Reporting a vulnerability
 
-Please write privately to **contact@mediaverse.studio** with "Security" in the subject, and describe what you found and how to reproduce it. Please do not open a public issue for a vulnerability.
+Please report it privately through GitHub: on the repository's **Security** tab choose **Report a vulnerability**, and describe what you found and how to reproduce it. If you cannot use GitHub, write to **contact@mediaverse.studio** with "Security" in the subject. Please do not open a public issue for a vulnerability.
 You will get an answer, and a fix or a plain explanation, as quickly as a one-person spare-time project can manage. Reports are credited if you wish.
 
 ## What matters most here
