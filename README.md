@@ -141,9 +141,18 @@ their own licences; see [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) and
 The name "MediaVerse Studio" and its logo are not covered by the GPL: changed versions need their own name. See
 [`TRADEMARKS.md`](TRADEMARKS.md).
 
-## Supporting the project
+## Supporting the services behind it
 
-MediaVerse Studio is free and will stay free. It is made in spare time; there are no paid features, adverts or tracking. There is no donation link at the moment; if the project ever grows to need one, it will be announced here.
+MediaVerse Studio is free and will stay free; it is made in spare time and has no donation link. The disc, album, cover and lyric details it fills in come from services run by individuals and non-profits who depend on gifts. If you would like to give something back, please consider them:
+
+- **[gnudb](https://gnudb.org/donate.php)**: a free CD database run by one person, free of advertising and kept going by donations; the second opinion after MusicBrainz when you rip a disc.
+- **[MusicBrainz and the MetaBrainz Foundation](https://metabrainz.org/donate)**: the open music encyclopedia behind the disc and album lookups, run by a non-profit.
+- **[Internet Archive](https://archive.org/donate)**: stores the Cover Art Archive pictures the program finds for your albums.
+- **[Wikimedia](https://donate.wikimedia.org/)**: Wikimedia Commons is where artist photos come from.
+- **[Jellyfin](https://jellyfin.org/)**: the volunteer-built media server this program works with; its site explains how to help.
+- **[LRCLIB](https://lrclib.net/)**: a free community lyrics database; it has no donation page we could find, so please use it kindly.
+
+The same list is in the program under Settings > About, and on the [support page](https://mediaverse.studio/support.html) of the website.
 
 ## Credits
 

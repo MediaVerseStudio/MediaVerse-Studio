@@ -1,8 +1,9 @@
 // Settings > About (D88): which version this is, the licence, and the button that opens the licences folder
 // (licence texts and notices for everything bundled, and how to get the source). All text is set with textContent.
 
-import { aboutInfo, openLicences } from "./desktop-bridge";
+import { aboutInfo, openExternal, openLicences } from "./desktop-bridge";
 import { el } from "./dom";
+import { ISSUE_BOARD, SUPPORT_INTRO, SUPPORT_LINKS } from "./support-services";
 
 const CONTACT = "contact@mediaverse.studio";
 
@@ -40,8 +41,23 @@ export async function renderAboutSettings(root: HTMLElement): Promise<void> {
     actions.append(el("p", "field-hint", "This copy was run from source and has no licences folder yet (tools\\make-licence-pack.ps1 makes one). The licence texts are also in the source code: LICENSE and THIRD_PARTY_NOTICES.md."));
   }
 
-  // Plain text: the app opens only an allow-list of https sites (external-links.js), not mail links.
-  const contact = el("p", "field-hint", `Questions, problems or ideas: ${CONTACT}`);
+  // Questions, problems and ideas go on the issue board (the app opens only an allow-list of https sites: electron/external-links.js).
+  const board = el("p", "field-hint", "Questions, problems or ideas: ");
+  const boardLink = el("button", "secondary", "Open the issue board ↗");
+  boardLink.type = "button";
+  boardLink.addEventListener("click", () => void openExternal(ISSUE_BOARD));
+  board.append(boardLink);
 
-  root.replaceChildren(heading, el("p", "about-version", version), licence, parts, actions, contact);
-}
+  // Support the services behind the program (instead of a donation link for this free program).
+  const support = el("div", "about-support");
+  support.append(el("h4", undefined, "Support the services behind it"), el("p", "field-hint", SUPPORT_INTRO));
+  for (const service of SUPPORT_LINKS) {
+    const row = el("div", "setup-extra");
+    const open = el("button", "secondary", `${service.label} ↗`);
+    open.type = "button";
+    open.addEventListener("click", () => void openExternal(service.url));
+    row.append(el("strong", undefined, service.name), el("p", "field-hint", service.what), open);
+    support.append(row);
+  }
+
+  root.replaceChildren(heading, el("p", "about-version", version), licence, parts, actions, board, support);}
