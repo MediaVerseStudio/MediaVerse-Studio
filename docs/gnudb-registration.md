@@ -54,7 +54,7 @@ info"); check https://gnudb.org/howto.php for any later change.
 
 ## Open
 
-* **Not sent yet (checked 2026-11-24): there is no registered version to update.** gnudb has no account page for this: registering is one email to info@gnudb.org (the draft above, version 0.9.0). The program already sends its own version in every request, and gnudb accepts unregistered programs whose hello address is real, so nothing is blocked. Send it from the owner's own mail account, giving `contact@mediaverse.studio` as the contact address.
+* **Granted (2026-11-25): gnudb replied that MediaVerseStudio now has access ("you are all set").** Earlier note, kept for the record: there was no registered version to update. gnudb has no account page for this: registering is one email to info@gnudb.org (the draft above, version 0.9.0). The program already sends its own version in every request, and gnudb accepts unregistered programs whose hello address is real, so nothing is blocked. Send it from the owner's own mail account, giving `contact@mediaverse.studio` as the contact address.
 * The code has been tested against local fake servers only. After the contact address is chosen, one
   live query should confirm the parsers against real gnudb replies.
 * Submitting corrected entries back to gnudb (`submit.cgi`) is not built and needs the user's own

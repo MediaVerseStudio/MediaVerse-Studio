@@ -43,8 +43,8 @@ export const OPTIONAL_SERVICES: { name: string; purpose: string; link: { label: 
   },
   {
     name: "gnudb registration (optional)",
-    purpose: "gnudb is a free disc-name database used as a second opinion after MusicBrainz. It asks new programs to register by email. Your address above is what it sees.",
-    link: { label: "How to register with gnudb", url: "https://gnudb.org/howto.php" },
+    purpose: "gnudb is a free disc-name database used as a second opinion after MusicBrainz, run by one person and kept going by donations. MediaVerse Studio is registered with it, so there is nothing for you to sign up for; its requests carry your address above, which is all gnudb asks for.",
+    link: { label: "About gnudb", url: "https://gnudb.org/howto.php" },
   },
   {
     name: "MusicBrainz and LRCLIB",
