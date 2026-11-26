@@ -9,12 +9,12 @@ export const SUPPORT_INTRO =
   "MediaVerse Studio is free and has no donation link. The disc, album, cover and lyric details it fills in come from services run by individuals and non-profits who depend on gifts. If you would like to give something back, please consider them.";
 
 export const SUPPORT_LINKS: SupportLink[] = [
-  { name: "gnudb", what: "A free CD database run by one person, free of advertising and kept going by donations. It is the second opinion after MusicBrainz when you rip a disc.", label: "Donate to gnudb", url: "https://gnudb.org/donate.php" },
+  { name: "LRCLIB", what: "A free, nonprofit community lyrics database (its own words), and where the program finds most time-synced lyrics. Its home page has a Support LRCLIB button with ways to give, including a monthly goal.", label: "Support LRCLIB", url: "https://lrclib.net/" },
+  { name: "gnudb", what: "A free, advertising-free CD database operated by an individual (its own words) and kept going by donations; its home page says donations do not yet cover its costs. It is the second opinion after MusicBrainz when you rip a disc.", label: "Donate to gnudb", url: "https://gnudb.org/donate.php" },
+  { name: "Jellyfin", what: "The volunteer-built media server this program works with; its site says its costs are paid through donations from users.", label: "Ways to support Jellyfin", url: "https://jellyfin.org/contribute" },
   { name: "MusicBrainz (MetaBrainz Foundation)", what: "The open music encyclopedia behind the disc and album lookups, run by a non-profit foundation.", label: "Support MetaBrainz", url: "https://metabrainz.org/donate" },
-  { name: "Internet Archive", what: "Stores the pictures of the Cover Art Archive that the program finds for your albums.", label: "Support the Internet Archive", url: "https://archive.org/donate" },
   { name: "Wikimedia", what: "Its Commons library is where artist photos come from.", label: "Support Wikimedia", url: "https://donate.wikimedia.org/" },
-  { name: "Jellyfin", what: "The volunteer-built media server this program works with; its site explains how to help.", label: "Visit Jellyfin", url: "https://jellyfin.org/" },
-  { name: "LRCLIB", what: "A free community lyrics database. It has no donation page we could find, so please use it kindly.", label: "Visit LRCLIB", url: "https://lrclib.net/" },
+  { name: "Internet Archive", what: "Stores the pictures of the Cover Art Archive that the program finds for your albums.", label: "Support the Internet Archive", url: "https://archive.org/donate" },
 ];
 
 /** Where questions, problems and ideas go. */
