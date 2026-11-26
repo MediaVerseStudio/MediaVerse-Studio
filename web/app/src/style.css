@@ -614,7 +614,8 @@ main { padding-bottom: calc(var(--player-height, 0px) + 2rem); }
    page up out of reach, 2026-11-17); a clipped one cannot be scrolled at all. */
 .now-playing { position: fixed; inset: 0; z-index: 30; background: #120c08; overflow: clip; color: #f6e9dc; }
 .now-playing[hidden] { display: none; }
-.np-wall { position: absolute; inset: 0; overflow: hidden; display: grid; grid-template-columns: repeat(auto-fill, 80px); grid-auto-rows: 80px; grid-auto-flow: dense; gap: 3px; justify-content: center; align-content: start; }
+/* The columns and cell size come from wallGrid() (backdrop-plan.ts) so the cells fill the width exactly, edge to edge. */
+.np-wall { position: absolute; inset: 0; overflow: hidden; display: grid; grid-template-columns: repeat(var(--wall-cols, 19), 1fr); grid-auto-rows: var(--wall-cell, 80px); grid-auto-flow: dense; gap: 3px; align-content: start; }
 .np-tile { width: 100%; height: 100%; object-fit: cover; filter: sepia(1) saturate(1.5) hue-rotate(-12deg) brightness(0.7); }
 .np-tint { position: absolute; inset: 0; background: linear-gradient(to top, rgba(20, 10, 4, 0.92), rgba(40, 20, 8, 0.45) 55%, rgba(20, 10, 4, 0.7)); }
 .np-back { position: absolute; top: 1rem; left: 1rem; width: 3rem; height: 3rem; border-radius: 50%; font-size: 1.4rem; }
@@ -848,11 +849,11 @@ input, select, textarea, .field input[type="text"], .field input[type="number"],
   position: absolute;
   inset: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, 96px);
-  grid-auto-rows: 96px;
+  /* Columns and cell size are set by wallGrid() (backdrop-plan.ts) so the cells fill the width exactly, edge to edge. */
+  grid-template-columns: repeat(var(--wall-cols, 16), 1fr);
+  grid-auto-rows: var(--wall-cell, 96px);
   grid-auto-flow: dense;
   gap: 2px;
-  justify-content: center;
   align-content: start;
   perspective: 900px;
 }

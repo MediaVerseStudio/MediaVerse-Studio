@@ -1,5 +1,5 @@
 // Development aid (2026-11-25): how the page backdrop (the collage) is sized and how bright it shows on each page, to find why it shifts between pages and why some pages are darker.
-// Build first: npm run build. Run: npx electron scripts/measure-backdrop.cjs <demo-library> [output-dir]
+// Build first: npm run build. Run: npx electron scripts/measure-backdrop.cjs <demo-library> [output-dir] [WIDTHxHEIGHT, default 1600x1000]
 // Uses a throwaway data folder and the made-up demo library; prints one JSON line per page and can save the pictures.
 const { app, BrowserWindow } = require("electron");
 const fs = require("node:fs");
@@ -35,19 +35,22 @@ function brightness(image) {
   return { all: mean(0, width), leftStrip: mean(0, Math.round(width * 0.04)), rightStrip: mean(Math.round(width * 0.9), Math.round(width * 0.97)) };
 }
 
-async function measure(win, label) {
+async function measure(win, label, wallSelector = ".backdrop-wall") {
   await wait(1200);
   const info = await run(win, `(() => {
     const rect = (el) => { if (!el) return null; const r = el.getBoundingClientRect(); return [Math.round(r.left * 10) / 10, Math.round(r.top), Math.round(r.width * 10) / 10, Math.round(r.height)]; };
-    const wall = document.querySelector(".backdrop-wall");
-    const tiles = [...wall.querySelectorAll(".backdrop-tile")];
+    const wall = document.querySelector(${JSON.stringify(wallSelector)});
+    const tiles = [...wall.children];
     const firstTile = tiles[0];
+    const boxes = tiles.map((t) => t.getBoundingClientRect()).filter((r) => r.width > 0);
+    const coverLeft = boxes.length ? Math.round(Math.min(...boxes.map((r) => r.left)) * 10) / 10 : null;
+    const coverRight = boxes.length ? Math.round(Math.max(...boxes.map((r) => r.right)) * 10) / 10 : null;
     const cols = getComputedStyle(wall).gridTemplateColumns.split(" ").length;
     const page = document.querySelector("main > section.page:not([hidden])");
     return {
       innerWidth: innerWidth, clientWidth: document.documentElement.clientWidth, scrollbar: innerWidth - document.documentElement.clientWidth,
       scrolls: document.documentElement.scrollHeight > document.documentElement.clientHeight,
-      backdrop: rect(document.querySelector("#backdrop")), wall: rect(wall), columns: cols, firstTileLeft: firstTile ? Math.round(firstTile.getBoundingClientRect().left * 10) / 10 : null,
+      backdrop: rect(document.querySelector("#backdrop")), wall: rect(wall), columns: cols, coverLeft, coverRight, bandLeft: coverLeft, bandRight: coverRight === null ? null : Math.round((innerWidth - coverRight) * 10) / 10, firstTileLeft: firstTile ? Math.round(firstTile.getBoundingClientRect().left * 10) / 10 : null,
       main: rect(document.querySelector("main")), pageBg: page ? getComputedStyle(page).backgroundColor : null,
       shade: getComputedStyle(document.querySelector(".backdrop-shade")).backgroundImage.replace(/rgba?\\(/g, "(").slice(0, 120),
     };
@@ -62,7 +65,8 @@ app.whenReady().then(async () => {
     let win;
     for (let i = 0; i < 100 && !(win = BrowserWindow.getAllWindows()[0]); i++) await wait(100);
     win.unmaximize();
-    win.setContentSize(1600, 1000);
+    const [sizeW, sizeH] = (process.argv[4] || "1600x1000").split("x").map(Number);
+    win.setContentSize(sizeW, sizeH);
     win.center();
     await wait(1500);
     await run(win, "localStorage.setItem('mediaverse.welcome-seen', '1'); location.reload(); 0");
@@ -78,6 +82,12 @@ app.whenReady().then(async () => {
     await wait(500);
     await click(win, ".lib-artist", "Copper Lantern");
     await measure(win, "artist-page");
+    await run(win, "(() => { const row = [...document.querySelectorAll('#artist-page tr[data-path]')].find((r) => r.textContent.includes('Night Ferry')); row.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })); })()");
+    await wait(2500);
+    await click(win, "#player-expand");
+    await measure(win, "now-playing", "#np-wall");
+    await run(win, "document.querySelector('#np-back')?.click(); 0");
+    await wait(800);
     await click(win, "[data-page=home]");
     await measure(win, "home");
     await click(win, "[data-page=rip]");
