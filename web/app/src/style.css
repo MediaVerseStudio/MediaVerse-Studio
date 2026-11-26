@@ -841,7 +841,9 @@ input, select, textarea, .field input[type="text"], .field input[type="number"],
 }
 
 /* The wall itself. */
-.backdrop { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; background: #050404; }
+/* The full width of the window, scrollbar included (100vw), not "inset: 0": inset 0 stops at the scrollbar, so on a page tall enough to scroll the wall was 15 px narrower and the whole
+   collage jumped about 8 px sideways against a page that does not scroll (owner, 2026-11-25). The scrollbar simply covers its strip of the wall. */
+.backdrop { position: fixed; inset: 0 auto 0 0; width: 100vw; z-index: 0; overflow: hidden; pointer-events: none; background: #050404; }
 .backdrop-wall {
   position: absolute;
   inset: 0;
@@ -1215,9 +1217,14 @@ button.pager-button.is-active { background: var(--accent); border-color: var(--a
 .ft-source { font-size: 0.75rem; color: var(--accent); align-self: flex-start; margin-top: 0.2rem; }
 
 /* ==== Library (D52): Windows Media Player layout, Zune look ==== */
-/* The collage stays behind the library with its depth, darker than on Now Playing so the lists read easily. */
+/* The collage stays behind the library, darker than on Now Playing so the lists read easily. It used to be a heavy shade (0.78 to 0.84) over an 80% dark page panel, so only about 6% of the collage showed;
+   Library, Artist and Review now have the same shade as Home, Rip and Settings and a half-dark page panel (owner, 2026-11-25). */
 body[data-page="library"] .backdrop-shade,
-body[data-page="artist"] .backdrop-shade { background: linear-gradient(to bottom, rgba(0, 0, 0, 0.78), rgba(0, 0, 0, 0.68) 45%, rgba(0, 0, 0, 0.84)); }
+body[data-page="artist"] .backdrop-shade,
+body[data-page="review"] .backdrop-shade { background: linear-gradient(to bottom, rgba(0, 0, 0, 0.62), rgba(0, 0, 0, 0.5) 45%, rgba(0, 0, 0, 0.7)); }
+body[data-page="library"] #library-page,
+body[data-page="artist"] #artist-page,
+body[data-page="review"] #review-page { background: rgba(8, 6, 5, 0.5); }
 body[data-page="library"] main,
 body[data-page="artist"] main { max-width: 110rem; }
 
@@ -1408,12 +1415,6 @@ main > section.page section { background: rgba(255, 255, 255, 0.02); }
 #library-page, #artist-page { margin-right: 2.4rem; padding-right: 1.5rem; }
 .lib-artist-text { min-width: 0; overflow: hidden; }
 .lib-artist-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* The pages read over the collage as the library does: the same darker shade behind every page (Now Playing keeps
-   its own, brighter look). */
-body[data-page="home"] .backdrop-shade,
-body[data-page="rip"] .backdrop-shade,
-body[data-page="review"] .backdrop-shade,
-body[data-page="settings"] .backdrop-shade { background: linear-gradient(to bottom, rgba(0, 0, 0, 0.8), rgba(0, 0, 0, 0.72) 45%, rgba(0, 0, 0, 0.86)); }
 /* The pictures dialog's heading: the album (or song) large and light, its artist and year below. */
 #media-title { font-size: 2rem; font-weight: 300; margin: 0; letter-spacing: -0.01em; }
 .media-subtitle { margin: 0.1rem 0 0.6rem; color: var(--ink-dim); }
