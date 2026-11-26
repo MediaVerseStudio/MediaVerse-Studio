@@ -143,14 +143,14 @@ The name "MediaVerse Studio" and its logo are not covered by the GPL: changed ve
 
 ## Supporting the services behind it
 
-MediaVerse Studio is free and will stay free; it is made in spare time and has no donation link. The disc, album, cover and lyric details it fills in come from services run by individuals and non-profits who depend on gifts. If you would like to give something back, please consider them:
+MediaVerse Studio is free and will stay free; it is made in spare time and has no donation link. The disc, album, cover and lyric details it fills in come from services run by individuals and non-profits who depend on gifts. If you would like to give something back, please consider them (in the order the project's owner would put them):
 
-- **[gnudb](https://gnudb.org/donate.php)**: a free CD database run by one person, free of advertising and kept going by donations; the second opinion after MusicBrainz when you rip a disc.
-- **[MusicBrainz and the MetaBrainz Foundation](https://metabrainz.org/donate)**: the open music encyclopedia behind the disc and album lookups, run by a non-profit.
-- **[Internet Archive](https://archive.org/donate)**: stores the Cover Art Archive pictures the program finds for your albums.
-- **[Wikimedia](https://donate.wikimedia.org/)**: Wikimedia Commons is where artist photos come from.
-- **[Jellyfin](https://jellyfin.org/)**: the volunteer-built media server this program works with; its site explains how to help.
-- **[LRCLIB](https://lrclib.net/)**: a free community lyrics database; it has no donation page we could find, so please use it kindly.
+- **[LRCLIB](https://lrclib.net/)**: A free, nonprofit community lyrics database (its own words), and where the program finds most time-synced lyrics. Its home page has a Support LRCLIB button with ways to give, including a monthly goal.
+- **[gnudb](https://gnudb.org/donate.php)**: A free, advertising-free CD database operated by an individual (its own words) and kept going by donations; its home page says donations do not yet cover its costs. It is the second opinion after MusicBrainz when you rip a disc.
+- **[Jellyfin](https://jellyfin.org/contribute)**: The volunteer-built media server this program works with; its site says its costs are paid through donations from users.
+- **[MusicBrainz and the MetaBrainz Foundation](https://metabrainz.org/donate)**: The open music encyclopedia behind the disc and album lookups, run by a non-profit foundation.
+- **[Wikimedia](https://donate.wikimedia.org/)**: Its Commons library is where artist photos come from.
+- **[Internet Archive](https://archive.org/donate)**: Stores the pictures of the Cover Art Archive that the program finds for your albums.
 
 The same list is in the program under Settings > About, and on the [support page](https://mediaverse.studio/support.html) of the website.
 
