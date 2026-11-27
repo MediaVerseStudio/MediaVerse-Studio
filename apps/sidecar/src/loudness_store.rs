@@ -291,10 +291,13 @@ mod tests {
 
     #[test]
     fn songs_of_one_folder_are_one_album() {
-        assert_eq!(
-            folder_of("M:\\Band\\Record\\01 Song.mp3"),
-            "M:\\Band\\Record"
-        );
+        // This system's own form of a path: songs are stored with it.
+        let (song, folder) = if cfg!(windows) {
+            ("M:\\Band\\Record\\01 Song.mp3", "M:\\Band\\Record")
+        } else {
+            ("/music/Band/Record/01 Song.mp3", "/music/Band/Record")
+        };
+        assert_eq!(folder_of(song), folder);
         assert_eq!(folder_of("song.mp3"), "");
     }
 

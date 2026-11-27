@@ -21,7 +21,10 @@ test("audio inside the library is allowed", () => {
   const { library } = setup();
   const file = path.join(library, "Artist", "song.mp3");
   assert.equal(resolveAllowedAudio(file, library), fs.realpathSync(file));
-  assert.equal(resolveAllowedAudio(path.join(library, "Artist", "SONG.MP3"), library).toLowerCase(), fs.realpathSync(file).toLowerCase());
+  // Only Windows ignores the case of file names.
+  if (process.platform === "win32") {
+    assert.equal(resolveAllowedAudio(path.join(library, "Artist", "SONG.MP3"), library).toLowerCase(), fs.realpathSync(file).toLowerCase());
+  }
 });
 
 test("other file types, outside files and odd paths are refused", () => {
@@ -63,7 +66,7 @@ test("a path from before the library moved plays the same song in the library", 
   fs.mkdirSync(path.join(outside, "Band", "Album"), { recursive: true });
   fs.writeFileSync(path.join(outside, "Band", "Album", "13 - Song.mp3"), "old");
   assert.equal(resolveAllowedAudio(path.join(outside, "Band", "Album", "13 - Song.mp3"), library), fs.realpathSync(real));
-  assert.equal(resolveAllowedAudio("C:\\Users\\Sam\\Music\\Band\\Album\\13 - Song.mp3".replace(/^C:/, path.parse(library).root.replace(/[\\/]$/, "")), library), fs.realpathSync(real));
+  assert.equal(resolveAllowedAudio(path.join(path.parse(library).root, "Users", "Sam", "Music", "Band", "Album", "13 - Song.mp3"), library), fs.realpathSync(real));
   // Not in the library, or climbing out: still refused.
   assert.throws(() => resolveAllowedAudio(path.join(outside, "secret.mp3"), library), /outside your music library/);
   assert.throws(() => resolveAllowedAudio(path.join(outside, "Nobody", "Nothing", "1.mp3"), library), /could not be found/);

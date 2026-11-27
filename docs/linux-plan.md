@@ -3,7 +3,10 @@
 Owner (2026-11-18): many friends use Linux as their main system, so a Linux application is a goal for later. The owner has no computer set up for Linux at present.
 This plan lists what is Windows-only today (from a search of the code on 2026-11-18), the steps, and how to test without a Linux computer. Nothing is built.
 
-## State (2026-11-27): a first test build is being set up (D217)
+## State (2026-11-27): a first test build exists (D217)
+
+The first run on GitHub built the program, installed the `.deb` on a clean Ubuntu 24.04 machine, started it, imported two test tones, read one through the player,
+switched sharing on and saved screenshots. A few tests that wrote their paths the Windows way failed and were made to work on both systems.
 
 Branch `feat/linux-build`. `tools/linux/package.sh` makes a `.deb` (Ubuntu 24.04 and newer) and a `.tar.gz`; the workflow `.github/workflows/linux.yml` builds them,
 installs the `.deb` on a clean Ubuntu machine, starts the program and runs the tests. `tools/linux/setup-dev.sh` prepares Ubuntu or WSL to build locally

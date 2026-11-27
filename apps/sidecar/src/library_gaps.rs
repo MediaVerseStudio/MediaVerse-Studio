@@ -770,7 +770,10 @@ mod tests {
                 .as_array()
                 .unwrap()
                 .iter()
-                .find(|f| f["path"].as_str().unwrap().contains(&format!("{name}\\")))
+                .find(|f| {
+                    let inside = format!("{name}{}", std::path::MAIN_SEPARATOR);
+                    f["path"].as_str().unwrap().contains(&inside)
+                })
                 .unwrap()
                 .clone()
         };
@@ -917,7 +920,10 @@ mod tests {
                 .as_array()
                 .unwrap()
                 .iter()
-                .find(|f| f["path"].as_str().unwrap().contains(&format!("{name}\\")))
+                .find(|f| {
+                    let inside = format!("{name}{}", std::path::MAIN_SEPARATOR);
+                    f["path"].as_str().unwrap().contains(&inside)
+                })
                 .unwrap()
                 .clone()
         };

@@ -1269,11 +1269,20 @@ mod tests {
         );
     }
 
+    /// A path written the Windows way, in this system's own form (`C:\Music` becomes `/C/Music` elsewhere).
+    fn native(path: &str) -> String {
+        if cfg!(windows) {
+            path.to_owned()
+        } else {
+            format!("/{}", path.replace(':', "").replace('\\', "/"))
+        }
+    }
+
     #[test]
     fn suggests_artist_from_a_file_name_when_the_path_has_no_artist_folder() {
         let suggestions = path_suggestions(
-            Path::new(r"C:\Music"),
-            r"C:\Music\Miscellaneous\Alice In Chains - Rotten Apple.mp3",
+            Path::new(&native(r"C:\Music")),
+            &native(r"C:\Music\Miscellaneous\Alice In Chains - Rotten Apple.mp3"),
             "Track 1",
             Some("Unknown artist"),
             None,
@@ -1289,8 +1298,8 @@ mod tests {
     #[test]
     fn suggests_artist_when_the_selected_root_is_an_artist_folder() {
         let suggestions = path_suggestions(
-            Path::new(r"C:\Music\Alice In Chains"),
-            r"C:\Music\Alice In Chains\Dirt\01 Them Bones.mp3",
+            Path::new(&native(r"C:\Music\Alice In Chains")),
+            &native(r"C:\Music\Alice In Chains\Dirt\01 Them Bones.mp3"),
             "Track 1",
             Some("Unknown artist"),
             Some("Unknown album"),
@@ -1305,8 +1314,8 @@ mod tests {
     #[test]
     fn suggests_missing_metadata_from_a_standard_library_path() {
         let suggestions = path_suggestions(
-            Path::new(r"C:\Music"),
-            r"C:\Music\Alice In Chains\Jar Of Flies [EP]\01 Rotten Apple.mp3",
+            Path::new(&native(r"C:\Music")),
+            &native(r"C:\Music\Alice In Chains\Jar Of Flies [EP]\01 Rotten Apple.mp3"),
             "Track 1",
             Some("Unknown artist"),
             Some("Unknown album"),

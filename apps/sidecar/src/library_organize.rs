@@ -465,9 +465,18 @@ pub fn preview_json(root: &Path, songs: &[Song], pattern: &str, options: &Option
 mod tests {
     use super::*;
 
+    /// A path written the Windows way, in this system's own form (`M:\Music` becomes `/M/Music` elsewhere).
+    fn native(path: &str) -> String {
+        if cfg!(windows) {
+            path.to_owned()
+        } else {
+            format!("/{}", path.replace(':', "").replace('\\', "/"))
+        }
+    }
+
     fn song(path: &str, artist: &str, album: &str, title: &str, track: u32) -> Song {
         Song {
-            path: path.to_owned(),
+            path: native(path),
             artist: Some(artist.to_owned()),
             album: Some(album.to_owned()),
             title: Some(title.to_owned()),
@@ -523,7 +532,8 @@ mod tests {
 
     #[test]
     fn the_plan_separates_moves_correct_places_skips_and_conflicts() {
-        let root = Path::new("M:\\Music");
+        let root = native("M:\\Music");
+        let root = Path::new(&root);
         let songs = vec![
             song(
                 "M:\\Music\\Band\\Record\\01 - One.mp3",
@@ -550,7 +560,7 @@ mod tests {
         assert!(
             plan.moves
                 .iter()
-                .all(|(_, to)| to.starts_with("M:\\Music\\Band\\Record\\"))
+                .all(|(_, to)| to.starts_with(&native("M:\\Music\\Band\\Record\\")))
         );
     }
 
@@ -710,7 +720,7 @@ mod tests {
         assert_eq!(plan.conflicts.len(), 2);
         assert!(
             plan.conflicts[0].identical
-                && plan.conflicts[0].other.as_deref() == Some("M:\\Music\\a\\x.mp3")
+                && plan.conflicts[0].other == Some(native("M:\\Music\\a\\x.mp3"))
         );
         assert!(!plan.conflicts[1].identical);
     }
