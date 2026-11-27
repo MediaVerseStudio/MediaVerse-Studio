@@ -18,7 +18,7 @@ const { createJellyfinStream, songIdOf } = require("./jellyfin-stream");
 const jellyfin = createJellyfinHelper({ log: (message) => console.warn(message) });
 /** Songs of a Jellyfin server played and cast when the server alone is the library (D173). */
 const jellyfinStream = createJellyfinStream();
-const JELLYFIN_DOWNLOAD_PAGE = "https://jellyfin.org/downloads/windows";
+const JELLYFIN_DOWNLOAD_PAGE = `https://jellyfin.org/downloads/${process.platform === "win32" ? "windows" : "server"}`;
 const { pathToFileURL } = require("node:url");
 const { resolveAllowedAudio, mimeTypeFor } = require("./media-access");
 const { createLibraryShare, parseRange } = require("./library-share");
@@ -261,7 +261,8 @@ function createWindow() {
     minHeight: Math.min(MIN_SIZE.height, bounds.height),
     show: false,
     // Title bar and taskbar icon (D86). brand/ holds the sources; tools/make-brand-assets.ps1 remakes it.
-    icon: path.join(__dirname, "icon.ico"),
+    // Windows takes the .ico (several sizes); elsewhere an .ico is not read, so the PNG is used.
+    icon: path.join(__dirname, process.platform === "win32" ? "icon.ico" : "icon.png"),
     backgroundColor: "#050404",
     webPreferences: {
       contextIsolation: true,

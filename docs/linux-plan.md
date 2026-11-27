@@ -3,6 +3,16 @@
 Owner (2026-11-18): many friends use Linux as their main system, so a Linux application is a goal for later. The owner has no computer set up for Linux at present.
 This plan lists what is Windows-only today (from a search of the code on 2026-11-18), the steps, and how to test without a Linux computer. Nothing is built.
 
+## State (2026-11-27): a first test build is being set up (D217)
+
+Branch `feat/linux-build`. `tools/linux/package.sh` makes a `.deb` (Ubuntu 24.04 and newer) and a `.tar.gz`; the workflow `.github/workflows/linux.yml` builds them,
+installs the `.deb` on a clean Ubuntu machine, starts the program and runs the tests. `tools/linux/setup-dev.sh` prepares Ubuntu or WSL to build locally
+(`docs/dev-environment.md` section 11). Left out of the test build: the CD helper, LAME and conversion to MP3, and the Lyric AI and photo reader downloads. Nothing
+has been tried by a person on a Linux computer yet.
+
+The inventory below is from 2026-11-18. By 2026-11-27 much of it needed no work: the Windows-only Rust code already had stand-ins for other systems, and the HTTP
+client uses the system's OpenSSL on Linux without a new dependency.
+
 ## What is portable already
 
 Electron (Chromium and Node) runs on Linux. The Rust sidecar is standard Rust; its audio, tag, FLAC, MP3 (LAME is C and portable), lyrics, library and review code has no

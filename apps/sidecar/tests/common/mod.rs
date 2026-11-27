@@ -20,16 +20,17 @@ pub struct Client {
 pub fn fake_helper() -> PathBuf {
     // The test exe sits at target/<profile>/deps/x.exe (older Cargo) or deep under
     // target/<profile>/build/<crate>/<hash>/out/x.exe (Rust 1.100+), so walk up until a folder
-    // holds examples/fake_helper.exe instead of assuming a fixed depth.
+    // holds examples/fake_helper (.exe on Windows) instead of assuming a fixed depth.
+    let name = format!("fake_helper{}", std::env::consts::EXE_SUFFIX);
     let exe = std::env::current_exe().unwrap();
     let found = exe
         .ancestors()
         .skip(1)
-        .map(|dir| dir.join("examples").join("fake_helper.exe"))
+        .map(|dir| dir.join("examples").join(&name))
         .find(|path| path.is_file());
     found.unwrap_or_else(|| {
         panic!(
-            "build the example first: no examples/fake_helper.exe above {}",
+            "build the example first: no examples/{name} above {}",
             exe.display()
         )
     })

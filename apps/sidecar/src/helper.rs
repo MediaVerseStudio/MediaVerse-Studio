@@ -53,13 +53,16 @@ pub fn resolve_path() -> Result<PathBuf, HelperError> {
         }
         candidates.push(dir.join("mediaverse_cd_helper.exe"));
     }
-    candidates.into_iter().find(|path| path.is_file()).ok_or_else(|| {
-        failure(
-            "helper_unavailable",
-            "The CD helper was not found. Build it with tools\\build-cd-helper.ps1 or set MEDIAVERSE_CD_HELPER_PATH.",
-        )
-    })
+    candidates
+        .into_iter()
+        .find(|path| path.is_file())
+        .ok_or_else(|| failure("helper_unavailable", NOT_FOUND))
 }
+
+#[cfg(windows)]
+const NOT_FOUND: &str = "The CD helper was not found. Build it with tools\\build-cd-helper.ps1 or set MEDIAVERSE_CD_HELPER_PATH.";
+#[cfg(not(windows))]
+const NOT_FOUND: &str = "Reading CDs is not available on this system yet.";
 
 pub struct Helper {
     child: Arc<Mutex<Child>>,

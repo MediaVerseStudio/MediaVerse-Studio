@@ -2837,3 +2837,18 @@ in 0.9.0 a song that became available on a device after its playlist had synced 
 playlist at the next sync; a record made by 0.9.0 removes nothing for its first round. "Not now" to the first
 profile question is now remembered. Wi-Fi sync, profiles and the Jellyfin plugin have had little use on real
 devices; the release notes say so. The fix alone is kept on the branch `hotfix/playlist-removal`.
+
+## D217 (2026-11-27): a first Linux test build
+
+The owner asked for a basic Linux build so that a test version can be offered. Built on branch `feat/linux-build`:
+
+- **What it is:** a `.deb` for Ubuntu 24.04 and newer, and the same program as a `.tar.gz` for other distributions (untested). Built on Ubuntu 24.04 so that it runs on
+  that release and later ones.
+- **Changed from the plan (to be confirmed by the owner):** `.deb` and `.tar.gz` come first instead of an AppImage. Both are made with tools Ubuntu already has, so no
+  new packaging tool is added, and the `.deb` can set up Chromium's sandbox properly, which Ubuntu 24.04 restricts. The sandbox stays on. AppImage and Flatpak stay on
+  the plan.
+- **TLS (the open question in `linux-plan.md`, to be confirmed by the owner):** the existing `native-tls` uses the system's OpenSSL on Linux. Nothing new is added to
+  `Cargo.lock` and no cryptography library is shipped.
+- **Left out for now:** the CD helper, LAME and conversion to MP3 (no decoder yet; Symphonia stays the choice, D137), and the Lyric AI and photo reader downloads.
+- **Checked by:** the workflow `Linux test build`, which installs the `.deb` on a clean machine, starts it, imports two generated test tones, reads one through the
+  player, switches sharing on and saves screenshots. This is not a test by a person on a Linux computer.

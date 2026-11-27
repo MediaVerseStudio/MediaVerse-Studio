@@ -1,12 +1,13 @@
 /*
  * Builds the licences folder that ships beside the program (D88): every licence text and notice for what the
- * Windows build contains, the list of Rust libraries compiled into it, and how to get the source code.
+ * build contains, the list of Rust libraries compiled into it, and how to get the source code.
  *
- *   node tools/licences/make-licence-pack.cjs <output-folder> <commit>
+ *   node tools/licences/make-licence-pack.cjs <output-folder> <commit> [windows|linux]
  *
- * Run through tools\make-licence-pack.ps1, which puts cargo on the path. Every text is copied from the component's
- * own source (archives in third_party/source, the MSYS2 toolchain's licence folder, the cargo registry), never
- * written by hand, so it is the text the component was released under.
+ * On Windows, run through tools\make-licence-pack.ps1, which puts cargo on the path; tools/linux/package.sh runs it
+ * for Linux. Every text is copied from the component's own source (archives in third_party/source, the MSYS2
+ * toolchain's licence folder, the cargo registry), never written by hand, so it is the text the component was
+ * released under. The Linux build has no native components of its own (no CD helper or LAME yet).
  */
 const { execFileSync } = require("node:child_process");
 const fs = require("node:fs");
@@ -16,6 +17,7 @@ const path = require("node:path");
 const root = path.resolve(__dirname, "..", "..");
 const out = path.resolve(process.argv[2] || path.join(root, "dist-app", "licenses"));
 const commit = process.argv[3] || "unknown";
+const linux = process.argv[4] === "linux";
 const msys = process.env.MSYS2_ROOT || "C:\\msys64";
 const tar = path.join(process.env.SystemRoot || "C:\\Windows", "System32", "tar.exe");
 const problems = [];
@@ -23,7 +25,7 @@ const problems = [];
 fs.rmSync(out, { recursive: true, force: true });
 fs.mkdirSync(path.join(out, "texts"), { recursive: true });
 
-const write = (name, text) => fs.writeFileSync(path.join(out, name), text.replace(/\r?\n/g, "\r\n"));
+const write = (name, text) => fs.writeFileSync(path.join(out, name), text.replace(/\r?\n/g, linux ? "\n" : "\r\n"));
 function copyText(from, name) {
   if (!fs.existsSync(from)) { problems.push(`missing: ${from}`); return; }
   write(path.join("texts", name), fs.readFileSync(from, "utf8"));
@@ -54,17 +56,20 @@ copyText(path.join(root, "THIRD_PARTY_NOTICES.md"), "THIRD_PARTY_NOTICES.md");
 copyText(path.join(root, "TRADEMARKS.md"), "TRADEMARKS.md");
 
 // ---- Native components
-const sources = fs.readdirSync(path.join(root, "third_party", "source"));
-const cdio = sources.find((n) => /^libcdio-[0-9a-f]{40}\.tar\.gz$/.test(n));
-const paranoia = sources.find((n) => /^libcdio-paranoia-[0-9a-f]{40}\.tar\.gz$/.test(n));
-if (cdio) fromArchive(cdio, `${topFolder(cdio)}/COPYING`, "libcdio-COPYING.txt"); else problems.push("libcdio archive not found");
-if (paranoia) fromArchive(paranoia, `${topFolder(paranoia)}/COPYING`, "libcdio-paranoia-COPYING.txt"); else problems.push("libcdio-paranoia archive not found");
-fromArchive("lame-4.0.tar.gz", "lame-4.0/COPYING", "LAME-COPYING.txt");
-fromArchive("lame-4.0.tar.gz", "lame-4.0/LICENSE", "LAME-LICENSE.txt");
-copyText(path.join(msys, "ucrt64", "share", "licenses", "libiconv", "COPYING.LIB"), "libiconv-COPYING.LIB.txt");
-copyText(path.join(msys, "ucrt64", "share", "licenses", "crt", "COPYING.MinGW-w64-runtime.txt"), "MinGW-w64-runtime.txt");
-copyText(path.join(msys, "ucrt64", "share", "licenses", "winpthreads", "COPYING"), "winpthreads-COPYING.txt");
-copyText(path.join(msys, "ucrt64", "share", "licenses", "gcc", "COPYING.RUNTIME"), "GCC-runtime-library-exception.txt");
+function nativeComponents() {
+  const sources = fs.readdirSync(path.join(root, "third_party", "source"));
+  const cdio = sources.find((n) => /^libcdio-[0-9a-f]{40}\.tar\.gz$/.test(n));
+  const paranoia = sources.find((n) => /^libcdio-paranoia-[0-9a-f]{40}\.tar\.gz$/.test(n));
+  if (cdio) fromArchive(cdio, `${topFolder(cdio)}/COPYING`, "libcdio-COPYING.txt"); else problems.push("libcdio archive not found");
+  if (paranoia) fromArchive(paranoia, `${topFolder(paranoia)}/COPYING`, "libcdio-paranoia-COPYING.txt"); else problems.push("libcdio-paranoia archive not found");
+  fromArchive("lame-4.0.tar.gz", "lame-4.0/COPYING", "LAME-COPYING.txt");
+  fromArchive("lame-4.0.tar.gz", "lame-4.0/LICENSE", "LAME-LICENSE.txt");
+  copyText(path.join(msys, "ucrt64", "share", "licenses", "libiconv", "COPYING.LIB"), "libiconv-COPYING.LIB.txt");
+  copyText(path.join(msys, "ucrt64", "share", "licenses", "crt", "COPYING.MinGW-w64-runtime.txt"), "MinGW-w64-runtime.txt");
+  copyText(path.join(msys, "ucrt64", "share", "licenses", "winpthreads", "COPYING"), "winpthreads-COPYING.txt");
+  copyText(path.join(msys, "ucrt64", "share", "licenses", "gcc", "COPYING.RUNTIME"), "GCC-runtime-library-exception.txt");
+}
+if (!linux) nativeComponents();
 
 // ---- The page's one bundled third-party snippet: Vite's module-preload helper.
 const viteLicence = fs.readFileSync(path.join(root, "web", "app", "node_modules", "vite", "LICENSE.md"), "utf8");
@@ -73,7 +78,10 @@ write(path.join("texts", "Vite-MIT.txt"), viteLicence.split(/\n# Licenses of bun
 // ---- Rust libraries compiled into the shipped programs
 const cargo = (args) => execFileSync("cargo", args, { cwd: root, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
 const shipped = new Map(); // "name version" -> licence expression
-for (const [pkg, target] of [["mediaverse_sidecar", "x86_64-pc-windows-msvc"], ["mediaverse_cd_helper", "x86_64-pc-windows-gnu"], ["mediaverse_setup_stub", "x86_64-pc-windows-msvc"]]) {
+const programs = linux
+  ? [["mediaverse_sidecar", "x86_64-unknown-linux-gnu"]]
+  : [["mediaverse_sidecar", "x86_64-pc-windows-msvc"], ["mediaverse_cd_helper", "x86_64-pc-windows-gnu"], ["mediaverse_setup_stub", "x86_64-pc-windows-msvc"]];
+for (const [pkg, target] of programs) {
   const lines = cargo(["tree", "-p", pkg, "-e", "normal,no-proc-macro", "--prefix", "none", "-f", "{p}|{l}", "--target", target]).split(/\r?\n/);
   for (const line of lines) {
     const [id, licence] = line.replace(/ \(\*\)$/, "").split("|");
@@ -120,8 +128,8 @@ if (apacheUsers.length) {
   else texts.push(`==== Apache License 2.0, for ${apacheUsers.join(", ")} (they publish no licence file) ====\n\n${apacheText}\n`);
 }
 write("Rust-libraries.txt", [
-  "Rust libraries compiled into mediaverse_sidecar.exe, mediaverse_cd_helper.exe and the setup program.",
-  "MediaVerse Studio's own crates are GPL-3.0-or-later (texts\\MediaVerse-Studio-GPL-3.0.txt). The Rust standard",
+  linux ? "Rust libraries compiled into mediaverse_sidecar." : "Rust libraries compiled into mediaverse_sidecar.exe, mediaverse_cd_helper.exe and the setup program.",
+  `MediaVerse Studio's own crates are GPL-3.0-or-later (texts${linux ? "/" : "\\"}MediaVerse-Studio-GPL-3.0.txt). The Rust standard`,
   "library, built into every Rust program, is MIT OR Apache-2.0. rusqlite bundles SQLite, which is in the public domain.",
   "Where a library offers a choice (\"MIT OR Apache-2.0\"), MediaVerse Studio uses it under the licence compatible",
   "with the GPL. The full licence texts as published with each library follow the list.",
@@ -133,7 +141,33 @@ write("Rust-libraries.txt", [
 ].join("\n"));
 
 // ---- The overview
-write("README.txt", `MediaVerse Studio - licences and source code
+const linuxOverview = `MediaVerse Studio - licences and source code
+=============================================
+
+MediaVerse Studio is free software, licensed under the GNU General Public License, version 3 or (at your option)
+any later version: texts/MediaVerse-Studio-GPL-3.0.txt. It comes with NO WARRANTY. The name and logo are
+trademarks of the project (texts/TRADEMARKS.md).
+
+This copy was built from source commit ${commit}.
+
+What this program contains, and under which licence
+---------------------------------------------------
+  resources/mediaverse_sidecar   Rust libraries (MIT, Apache-2.0 and similar)       Rust-libraries.txt
+  mediaverse-studio              Electron, Chromium, Node.js (MIT, BSD and others)  LICENSE and LICENSES.chromium.html
+                                                                                    in the program folder
+  the program's page             Vite's module-preload helper (MIT)                 texts/Vite-MIT.txt
+
+It uses your system's own OpenSSL for secure connections; OpenSSL is not included.
+
+texts/THIRD_PARTY_NOTICES.md covers the Windows build as well, which contains more components.
+
+Getting the source code
+-----------------------
+The complete source code for this build is at https://github.com/MediaVerseStudio/MediaVerse-Studio, commit
+${commit}. You can also write to contact@mediaverse.studio and you will be given the source for this build at no
+charge. This offer is valid for three years from when you received the program, and for anyone who has a copy.
+`;
+write("README.txt", linux ? linuxOverview : `MediaVerse Studio - licences and source code
 =============================================
 
 MediaVerse Studio is free software, licensed under the GNU General Public License, version 3 or (at your option)

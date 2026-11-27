@@ -185,7 +185,40 @@ Move these by a USB drive or an encrypted copy, never through the repository, ch
 5. Android (6) and Tizen (6) last, since they need the phone and TV in hand.
 6. Run `tools\check-before-public.ps1` and the clean-PC install test from `docs/installer.md` on a separate virtual machine, not on this PC.
 
-## 11. What I could not verify from the old PC
+## 11. Linux builds on the same Windows PC (added 2026-11-27)
+
+Two ways, which can be used together. Both need virtualisation switched on in the BIOS (AMD boards call it **SVM Mode**; a BIOS update can switch it off again).
+
+**WSL for building** (everyday work: quick to set up, and Windows tools can drive it with `wsl.exe`). In an administrator PowerShell, restart when asked, then
+create the Linux user:
+
+```powershell
+wsl --install -d Ubuntu-24.04
+```
+
+Then in the Ubuntu terminal. Keep the clone in the Linux home folder, not under `/mnt/c` (much slower):
+
+```bash
+sudo apt-get update && sudo apt-get install -y git
+git clone https://github.com/MediaVerseStudio/MediaVerse-Studio.git ~/mediaverse && cd ~/mediaverse
+git switch feat/linux-build        # until the Linux work reaches develop
+bash tools/linux/setup-dev.sh      # system packages, Rust, Node 24
+bash tools/linux/package.sh        # the .deb and .tar.gz, in dist-app/linux
+```
+
+WSL shows Linux windows on the Windows desktop (WSLg), which is enough for a first look at the program. It is not a test of a real Linux desktop, and it has no CD
+drive.
+
+**A Hyper-V virtual machine for desktop testing** (install the `.deb` as a user would). In an administrator PowerShell, restart when asked:
+
+```powershell
+Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V -All
+```
+
+Create a Generation 2 machine from the Ubuntu 24.04 desktop ISO with the Secure Boot template `MicrosoftUEFICertificateAuthority`. A virtual machine has no CD
+drive access, limited sound (use an Enhanced Session or remote desktop) and no graphics card for the Lyric AI; those need real hardware.
+
+## 12. What I could not verify from the old PC
 
 - Which exact CUDA and cuDNN packages the Lyric AI runtime libraries were copied from (the versions are visible in the file names; the source is inferred from the
   lab environment).

@@ -6,11 +6,14 @@ const readline = require("node:readline");
 const SUPPORTED_PROTOCOL = 1;
 const REQUEST_TIMEOUT_MS = 10 * 60 * 1000;
 
+/** The sidecar's file name: `.exe` on Windows, none elsewhere. */
+const SIDECAR_NAME = process.platform === "win32" ? "mediaverse_sidecar.exe" : "mediaverse_sidecar";
+
 function resolveSidecarPath(resourcesPath) {
   const candidates = [
     process.env.MEDIAVERSE_SIDECAR_PATH,
-    resourcesPath && path.join(resourcesPath, "mediaverse_sidecar.exe"),
-    path.join(__dirname, "..", "..", "..", "target", "debug", "mediaverse_sidecar.exe"),
+    resourcesPath && path.join(resourcesPath, SIDECAR_NAME),
+    path.join(__dirname, "..", "..", "..", "target", "debug", SIDECAR_NAME),
   ].filter(Boolean);
 
   const found = candidates.find((candidate) => fs.existsSync(candidate));

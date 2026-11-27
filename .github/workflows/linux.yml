@@ -1,0 +1,112 @@
+# Builds the Linux TEST copy (tools/linux/package.sh), installs it on a clean Ubuntu machine and checks that it starts, and
+# runs the tests on Linux. The files are kept as downloads on the run's page. See docs/linux-plan.md.
+#
+# Runs on the Linux work branch and on demand; it is not yet a required check for main or develop.
+name: Linux test build
+
+on:
+  push:
+    branches: ["feat/linux-build"]
+  workflow_dispatch:
+
+concurrency:
+  group: linux-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      CARGO_TERM_COLOR: never
+    steps:
+      # Official GitHub actions, pinned to exact commits.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: web/app/package-lock.json
+
+      - name: Rust toolchain
+        run: rustup update stable --no-self-update && cargo --version
+
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+          key: cargo-linux-release-${{ hashFiles('Cargo.lock') }}
+          restore-keys: cargo-linux-release-
+
+      - name: Build the .deb and .tar.gz
+        run: bash tools/linux/package.sh
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: mediaverse-studio-linux-test
+          path: dist-app/linux/*
+          if-no-files-found: error
+          compression-level: 0
+
+      - name: Install it
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb ./dist-app/linux/*.deb
+
+      - name: Start it and check
+        run: xvfb-run -a --server-args="-screen 0 1600x1000x24" node tools/linux/smoke.cjs /usr/bin/mediaverse-studio smoke
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: smoke-check
+          path: smoke
+          if-no-files-found: ignore
+
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+      CARGO_TERM_COLOR: never
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: web/app/package-lock.json
+
+      - name: Rust toolchain
+        run: rustup update stable --no-self-update && cargo --version
+
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+          key: cargo-linux-test-${{ hashFiles('Cargo.lock') }}
+          restore-keys: cargo-linux-test-
+
+      # --no-fail-fast: one run shows every test that does not pass on Linux yet.
+      - name: Rust tests
+        run: cargo test --workspace --no-fail-fast
+
+      - name: Web app checks
+        if: always()
+        working-directory: web/app
+        run: |
+          npm ci
+          npm test
+          npm run build
+          npm run test:electron
