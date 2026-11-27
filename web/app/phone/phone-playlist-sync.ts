@@ -10,8 +10,12 @@ import type { Manifest } from "./home-sync.ts";
 import { addSongs, entryOf, resolvePlaylist, type PhonePlaylist } from "./phone-playlists.ts";
 import { mergeSongs } from "../src/playlist-sync.ts";
 
-/** For each playlist (by its lower-case name): its name and the server song ids it held at the last round. */
-export type PhonePlaylistState = Record<string, { name: string; ids: string[] }>;
+/**
+ * For each playlist (by its lower-case name): its name, the server song ids it held at the last round, and which of
+ * those the phone had too (`held`). Only a song both had can be taken off by one of them: a song the phone did not have
+ * then, and has now, is new to the phone, not removed from it.
+ */
+export type PhonePlaylistState = Record<string, { name: string; ids: string[]; held?: string[] }>;
 
 type Client = Pick<Jellyfin, "playlists" | "playlistSongs" | "createPlaylist" | "addToPlaylist" | "removeFromPlaylist" | "deletePlaylist" | "searchSongs">;
 type LocalSong = { id: string; title: string; artist: string | null; album_artist?: string | null; album: string | null; duration_ms?: number };
@@ -84,7 +88,8 @@ export async function syncPhonePlaylists(io: PhonePlaylistIo): Promise<{ playlis
   }
 
   const remoteLists = (await io.client.playlists(io.session)).filter((l) => !isFlagList(l.name));
-  const remoteByKey = new Map(remoteLists.map((l) => [keyOf(l.name), l]));
+  // A playlist file in the music folder cannot be changed: a real list of the same name goes before it (the later entry wins).
+  const remoteByKey = new Map([...remoteLists].sort((a, b) => Number(!a.file) - Number(!b.file)).map((l) => [keyOf(l.name), l]));
   const localByName = new Map(io.playlists.filter((p) => !isFlagList(p.name)).map((p) => [keyOf(p.name), p]));
   const next: PhonePlaylist[] = io.playlists.filter((p) => isFlagList(p.name));
   const state: PhonePlaylistState = {};
@@ -99,8 +104,10 @@ export async function syncPhonePlaylists(io: PhonePlaylistIo): Promise<{ playlis
       const localIds: string[] = [];
       const songByServerId = new Map<string, LocalSong>();
       const unmapped: PhonePlaylist["entries"] = [];
+      let own: LocalSong[] = [];
       if (local) {
         const resolved = resolvePlaylist(local, io.library, byId);
+        own = resolved;
         const resolvedIds = new Set(resolved.map((s) => s.id));
         for (const entry of local.entries) if (!resolvedIds.has(entry.id) && !resolved.some((s) => songKey(s) === songKey(entry))) unmapped.push(entry);
         for (const song of resolved) {
@@ -114,15 +121,38 @@ export async function syncPhonePlaylists(io: PhonePlaylistIo): Promise<{ playlis
           }
         }
       }
-      const localUnique = unique(localIds);
+      let localUnique = unique(localIds);
 
       if (local && remote) {
         const remoteSongs = await io.client.playlistSongs(io.session, remote.id);
         const remoteIds = unique(remoteSongs.map((s) => s.id));
         const localForServer = new Map<string, LocalSong | null>(remoteSongs.map((s) => [s.id, localFor(s as ServerSong & { artists?: string[] })]));
+        // The server's own list says which of its songs a phone song is: asked by name the server might answer another
+        // copy (the same song on a compilation), or not be asked at all (only so many in a round), and the one on the
+        // list would then look taken off here.
+        const listed = new Map<string, string>(); // phone song id -> the id on the server's list
+        for (const [id, song] of localForServer) if (song && !listed.has(song.id)) listed.set(song.id, id);
+        for (const song of own) {
+          const id = listed.get(song.id);
+          const found = [...songByServerId].find(([, s]) => s.id === song.id)?.[0];
+          if (!id || id === found || (found && remoteIds.includes(found))) continue;
+          if (found) songByServerId.delete(found);
+          else {
+            const at = unmapped.findIndex((e) => e.id === song.id);
+            if (at >= 0) unmapped.splice(at, 1);
+            report.notOnServer -= 1;
+          }
+          songByServerId.set(id, song);
+          localUnique = unique([...localUnique.filter((other) => other !== found), id]);
+        }
         // Songs the phone does not have are on the server's list and stay there: for the merge the phone counts as holding them.
         const missingHere = remoteIds.filter((id) => !localForServer.get(id));
-        const merged = mergeSongs(before ? before.ids : null, unique([...localUnique, ...missingHere]), remoteIds);
+        // A record from before `held` was kept cannot say what the phone had: for that one round nothing it lacks
+        // counts as taken off here.
+        const onPhone = new Set(localUnique);
+        const onServer = new Set(remoteIds);
+        const base = before ? (before.held ?? before.ids.filter((id) => !onServer.has(id) || onPhone.has(id))) : null;
+        const merged = mergeSongs(base, unique([...localUnique, ...missingHere]), remoteIds);
         const add = merged.filter((id) => !remoteIds.includes(id));
         const mergedSet = new Set(merged);
         const drop = remoteSongs.filter((s) => !mergedSet.has(s.id));
@@ -146,9 +176,9 @@ export async function syncPhonePlaylists(io: PhonePlaylistIo): Promise<{ playlis
         report.notHere += merged.filter((id) => !byServer.has(id)).length;
         const changed = rebuilt.entries.length !== local.entries.length || rebuilt.entries.some((e, i) => e.id !== local.entries[i]?.id);
         next.push(changed ? { ...rebuilt, updated: io.now } : local);
-        state[key] = { name: local.name, ids: merged };
+        state[key] = { name: local.name, ids: merged, held: merged.filter((id) => byServer.has(id)) };
       } else if (local && !remote) {
-        const baseIds = new Set(before?.ids ?? []);
+        const baseIds = new Set(before?.held ?? before?.ids ?? []);
         const unchanged = !!before && localUnique.length === baseIds.size && localUnique.every((id) => baseIds.has(id));
         if (before && unchanged) {
           report.deletedHere += 1; // it was deleted on the server and not changed here
@@ -159,7 +189,7 @@ export async function syncPhonePlaylists(io: PhonePlaylistIo): Promise<{ playlis
         report.madeOnServer += 1;
         report.addedOnServer += localUnique.length;
         next.push(local);
-        state[key] = { name: local.name, ids: localUnique };
+        state[key] = { name: local.name, ids: localUnique, held: localUnique };
       } else if (!local && remote) {
         if (before) {
           await io.client.deletePlaylist(io.session, remote.id); // deleted on the phone
@@ -175,7 +205,7 @@ export async function syncPhonePlaylists(io: PhonePlaylistIo): Promise<{ playlis
         report.addedHere += made.entries.length;
         report.notHere += ids.length - made.entries.length;
         next.push(made);
-        state[key] = { name: remote.name, ids };
+        state[key] = { name: remote.name, ids, held: ids.filter((id) => remoteSongs.some((s) => s.id === id && localFor(s as ServerSong & { artists?: string[] }))) };
       }
     } catch (thrown) {
       // The server being away or signing out ends the round (the caller says so); one playlist failing does not stop the others.

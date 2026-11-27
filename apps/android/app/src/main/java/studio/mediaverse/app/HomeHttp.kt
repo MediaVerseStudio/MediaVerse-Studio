@@ -12,7 +12,8 @@ import java.net.URL
  * page can never be used to reach the internet through this door.
  */
 object HomeHttp {
-    private const val MAX_BODY = 16 * 1024 * 1024
+    /** Room for the song list of a very large library (about 300 bytes a song, D214). */
+    private const val MAX_BODY = 48 * 1024 * 1024
 
     /** Whether an address belongs to the home network or this phone. */
     fun isHomeAddress(address: InetAddress): Boolean =

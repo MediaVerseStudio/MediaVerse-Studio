@@ -101,6 +101,15 @@ pauses and the phone carries on from the same song and place. If the TV stops li
 the computer's library) the phone says so and takes over. Shuffle and repeat stay with the TV's own remote for now.
 Protocol: `GET /api/remote?after=<seq>` (long poll, phone only) and `POST /api/remote/state` (see D58).
 
+## Music from the home server (D177, D178, D207)
+
+Chosen artists, albums or playlists are fetched into the phone's own Music folder (`Music/Artist/Album/`). The app takes
+off only songs it created itself (Android records the creating app); songs that were already on the phone are recognised
+and never deleted. A phone coming from an earlier version has its songs moved up from `Music/MediaVerse Home` at the
+first sync, keeping their identity (hearts, flags, playlists). **Replace phone copies with the library's versions**
+(off by default) writes the server's version over copies that differ, after Android's own permission question. A sync
+can be run for five minutes' worth or everything; one started by hand keeps the screen on.
+
 ## Release build (the `.apk` on the Releases page)
 
 `tools\build-android.ps1 -Release` builds a signed, non-debuggable `app-release.apk` (`apps/android/app/build/outputs/apk/release/`). The signing key is **not** in the repository: the script reads where it is from `%USERPROFILE%\.mediaverse\android-release.properties` (a keystore file, its passwords and the key alias) and passes them to Gradle in environment variables (`MEDIAVERSE_KEYSTORE`, `MEDIAVERSE_KEYSTORE_PASSWORD`, `MEDIAVERSE_KEY_ALIAS`, `MEDIAVERSE_KEY_PASSWORD`); without them the release build is simply unsigned. **Keep that keystore and its passwords backed up**: an app can only be updated in place by a build signed with the same key. The certificate names only the project ("MediaVerse Studio"). This key is for the downloadable `.apk`; Google Play's own upload key (`docs/google-play-beta-testing-guide.md`) is a separate thing, and a phone that has the sideloaded `.apk` must uninstall it before installing the Play version (the signatures differ). A debug build (the default) is signed with Android's generic debug key and cannot be installed over a release one, or the other way round.

@@ -6,7 +6,7 @@ window.miniPlayer.onState((state) => {
   $("title").textContent = state.hasTrack ? state.title || "Unknown song" : "Nothing playing";
   $("artist").textContent = state.hasTrack ? state.artist : "";
   $("cover").style.backgroundImage = state.cover ? `url("${state.cover}")` : "none";
-  $("toggle").textContent = state.playing ? "\u23F8" : "\u25B6";
+  $("toggle").classList.toggle("is-playing", !!state.playing);
   $("toggle").setAttribute("aria-label", state.playing ? "Pause" : "Play");
   $("toggle").title = state.playing ? "Pause" : "Play";
   $("previous").disabled = !(state.hasTrack && state.canPrevious);

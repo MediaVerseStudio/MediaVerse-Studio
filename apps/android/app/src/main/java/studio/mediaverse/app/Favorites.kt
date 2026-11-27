@@ -11,20 +11,22 @@ object Favorites {
     private const val KEY = "ids"
 
     fun all(context: Context): Set<String> =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getStringSet(KEY, emptySet()).orEmpty().toSet()
+        context.getSharedPreferences(Profiles.file(context, PREFS), Context.MODE_PRIVATE).getStringSet(KEY, emptySet()).orEmpty().toSet()
 
     /** A song was replaced by a new copy with another ID: the heart goes with it. */
     @Synchronized
     fun moved(context: Context, from: String, to: String) {
-        if (from !in all(context)) return
-        set(context, from, false)
-        set(context, to, true)
+        for (file in Profiles.files(context, PREFS)) {
+            val prefs = context.getSharedPreferences(file, Context.MODE_PRIVATE)
+            val ids = prefs.getStringSet(KEY, emptySet()).orEmpty()
+            if (from in ids) prefs.edit().putStringSet(KEY, ids - from + to).apply()
+        }
     }
 
     @Synchronized
     fun set(context: Context, id: String, on: Boolean) {
         val now = all(context).toMutableSet()
         if (on) now += id else now -= id
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putStringSet(KEY, now).apply()
+        context.getSharedPreferences(Profiles.file(context, PREFS), Context.MODE_PRIVATE).edit().putStringSet(KEY, now).apply()
     }
 }

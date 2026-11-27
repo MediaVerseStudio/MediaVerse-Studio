@@ -4,10 +4,10 @@ A free, open-source music library and player for people who still own CDs, and f
 
 **Website and beta sign-up: [mediaverse.studio](https://mediaverse.studio)**
 
-| Platform | State (0.9.0 beta, 2026-11-25) |
+| Platform | State (0.9.1 beta, 2026-11-26) |
 |---|---|
 | **Windows 11** | The full program: rip, fix tags, covers and lyrics (with the Lyric AI), library, playback, playlists, casting. **Public beta: the installer is on the [Releases page](../../releases)** |
-| **Android** | Playback app with Android Auto and casting; keeps the music you choose from your Jellyfin server on the phone, in step both ways. **Public beta: an `.apk` is on the Releases page** (install it directly; Google Play comes after its closed test) |
+| **Android** | Playback app with Android Auto and casting; keeps the music you choose from your Jellyfin server or your computer on the phone, in step both ways, and sends new music back. **Public beta: an `.apk` is on the Releases page** (install it directly; Google Play comes after its closed test) |
 | **Samsung TVs** (Tizen) | An app for the remote that plays from your PC, a Jellyfin server or a USB drive. Working on real TVs, but **not a download yet**: Samsung only installs an app on TVs named in its developer's certificate, so other people get it through Samsung's store beta (`docs/beta-testing.md`); you can also build and sign it yourself for your own TV (`docs/tv-apps.md`) |
 | **Google TV** | Next: the Android app laid out for the TV and its remote |
 | **Linux** | Planned: an AppImage first (`docs/linux-plan.md`) |
@@ -17,7 +17,7 @@ The Windows installer is not signed yet (code signing for free software needs a 
 
 **Jellyfin** is built in: the PC, the phone and the TV sign in to your own Jellyfin server with a code, and the server becomes the shared home for playlists and for songs you flag on any device. The PC can use the server's shared folder as its music folder (everything works, Jellyfin only rescans) or the server alone as its library (play and cast only). **Casting** works to TVs running the app, Google Cast devices and DLNA renderers, from a folder or from the server.
 
-> **Status (0.9.0 beta, 2026-11-25):** the first public beta. It has been used on one large library and tried on a clean Windows 11 virtual machine, not by many people yet, so back up your music before using the tools that change files (each has an undo). Working on Windows: drive setup and
+> **Status (0.9.1 beta, 2026-11-26):** the second public beta. New and so far little used on real devices: syncing a phone with the computer over Wi-Fi, profiles, sending new music from the phone, and a test version of a Jellyfin plugin. It has been used on one large library and tried on a clean Windows 11 virtual machine, not by many people yet, so back up your music before using the tools that change files (each has an undo). Working on Windows: drive setup and
 > calibration, secure ripping with AccurateRip, FLAC archive, LAME MP3 copies with tags, cover art and lyrics, MusicBrainz/gnudb/Discogs lookup, the library with tag editing, repair and review pages and a library organiser, playlists (also rule-based ones),
 > playback with Now Playing, time-stamped lyrics, gapless and crossfade, a ten-band equalizer, volume levelling that never turns anything down (optionally written into the files as ReplayGain tags, with undo), optional exclusive (WASAPI) output and a mini player,
 > casting, a single-file installer, the **Lyric AI** (finds, checks and times lyrics by listening, drafts lyrics for songs nobody has; AI models are separate, optional downloads), a lyrics editor with AI-assisted timing, an audio defect scan that also finds silent songs

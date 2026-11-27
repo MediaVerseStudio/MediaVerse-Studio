@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { describeCandidate, lengthGap, lengthText, yourSong, lookupSummary, textToUse, type LyricsCandidate } from "./lyrics-lookup-format.ts";
+import { describeCandidate, lengthGap, lengthText, lyricsWebSearchUrl, yourSong, lookupSummary, textToUse, type LyricsCandidate } from "./lyrics-lookup-format.ts";
 
 const candidate = (extra: Partial<LyricsCandidate> = {}): LyricsCandidate => ({
   id: 1,
@@ -47,4 +47,9 @@ test("the window says how a candidate's length compares with the song's own", ()
   assert.equal(lengthGap(240, null), "");
   assert.equal(yourSong("Song", "Band", "LP", 252), "Your song: Band — Song (LP, 4:12)");
   assert.match(describeCandidate(candidate({ duration: 261 }), 250), /0:11 longer than your song/);
+});
+
+test("the web search asks for the artist, album, song and lyrics, and leaves out what is unknown", () => {
+  assert.equal(lyricsWebSearchUrl("New Wave", "Against Me!", "New Wave"), "https://www.google.com/search?q=Against%20Me!%20New%20Wave%20New%20Wave%20lyrics");
+  assert.equal(lyricsWebSearchUrl("A & B?", null, ""), "https://www.google.com/search?q=A%20%26%20B%3F%20lyrics");
 });

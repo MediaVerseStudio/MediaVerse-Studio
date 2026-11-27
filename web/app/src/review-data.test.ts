@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { type AlbumGap, type EmbedIssue, oversizedGroup, albumsWithLargeEmbedded, albumsWithLowCover, albumsWithoutCover, albumsWithoutLyrics, defectList, markSaved, markedGood, scanCoverage, type DefectResult, type GapFile, type GapTrack } from "./review-data.ts";
+import { albumsWithLowCover, checkProblem, albumsWithoutCover, albumsWithoutLyrics, defectList, markSaved, markedGood, scanCoverage, type DefectResult, type GapFile, type GapTrack } from "./review-data.ts";
 
 const t = (folder: string, n: number, artist = "Band"): GapTrack => ({ title: `Song ${n}`, artist, album: folder, source_uri: `C:\\m\\${folder}\\${n}.mp3` });
 const tracks = [t("A", 1), t("A", 2), t("B", 1, "Other"), t("C", 1)];
@@ -62,32 +62,24 @@ test("the compact artwork list knows each album's artist, year and size, and a s
   assert.equal(markSaved(files, [songs[0].source_uri], { lyrics: false })[0].cover, false, "only the field that changed");
 });
 
-test("low-resolution covers and pictures too large to embed are listed per album", () => {
+test("low-resolution covers are listed per album", () => {
   const songs: GapTrack[] = [t("Small", 1), t("Small", 2), t("Fine", 1), t("Big", 1), t("Bare", 1)];
   const files: GapFile[] = [
     { ...file(songs[0], true, true), cover_size: [200, 200] },
     { ...file(songs[1], true, true), cover_size: [600, 600] }, // the album's best cover counts
     { ...file(songs[2], true, true), cover_size: [1000, 1000] },
-    { ...file(songs[3], true, true), cover_size: [1400, 1400], embed_issues: [{ kind: "front_cover", width: 1400, height: 1400, kb: 900, png: false }, { kind: "front_cover", width: 1400, height: 1400, kb: 2100, png: true }] },
+    { ...file(songs[3], true, true), cover_size: [1400, 1400] },
     { ...file(songs[4], false, true), cover_size: null },
   ];
   assert.deepEqual(albumsWithLowCover(files, songs, 500).map((g) => g.album), [], "600 × 600 is enough at 500");
   const under1000 = albumsWithLowCover(files, songs, 1000);
   assert.deepEqual(under1000.map((g) => [g.album, g.coverSize]), [["Small", [600, 600]]], "1000 × 1000 is not low; an album without a cover is in Missing");
-  const large = albumsWithLargeEmbedded(files, songs);
-  assert.deepEqual(large.map((g) => g.album), ["Big"]);
-  assert.deepEqual(large[0].issues, [{ kind: "front_cover", width: 1400, height: 1400, kb: 2100, png: true }], "the largest of each kind");
-  const fixed = markSaved(files, [songs[3].source_uri], { fixedKinds: ["front_cover"], coverSize: [1400, 1400] });
-  assert.deepEqual(albumsWithLargeEmbedded(fixed, songs), []);
 });
 
-test("oversized albums are grouped by their worst picture", () => {
-  const gap = (issues: EmbedIssue[]): AlbumGap => ({ folder: "f", album: "A", artist: "B", tracks: [], mp3Paths: [], issues });
-  const issue = (width: number, kb: number, png = false): EmbedIssue => ({ kind: "front_cover", width, height: width, kb, png });
-  assert.equal(oversizedGroup(gap([issue(1200, 90), issue(500, 900, true)])), "resize", "over 1000 pixels first");
-  assert.equal(oversizedGroup(gap([issue(900, 600)])), "over500");
-  assert.equal(oversizedGroup(gap([issue(300, 99, true)])), "png", "a small PNG only needs to become a JPEG");
-  assert.equal(oversizedGroup(gap([issue(1000, 300)])), "over200");
-  assert.equal(oversizedGroup(gap([issue(600, 300, true)])), "png");
-  assert.equal(oversizedGroup(gap([issue(653, 2100, true)])), "png", "every PNG is in the PNG group, however large");
+test("a check that read nothing, or matched no song in the list, is not reported as all well", () => {
+  const file: GapFile = { path: "M:\\A\\1.mp3", cover: true, lyrics: true, mp3: true };
+  const track: GapTrack = { title: "One", artist: "A", album: "B", source_uri: "M:\\A\\1.mp3" };
+  assert.match(checkProblem([], [track]) ?? "", /no songs were found/);
+  assert.match(checkProblem([file], []) ?? "", /song list is not ready/);
+  assert.equal(checkProblem([file], [track]), null);
 });

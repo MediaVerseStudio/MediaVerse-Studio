@@ -67,7 +67,7 @@ async function getJson<T>(address: string, timeoutMs = 15_000, headers?: Record<
   try {
     reply = await fetch(address, { signal: controller.signal, cache: "no-store", headers });
   } catch {
-    throw new ShareError("The computer did not answer. Check that MediaVerse Studio is running there and that sharing is on (Settings > TV).", "unreachable");
+    throw new ShareError("The computer did not answer. Check that MediaVerse Studio is running there and that sharing is on (Settings > TV & Phone Pairing).", "unreachable");
   } finally {
     clearTimeout(timer);
   }

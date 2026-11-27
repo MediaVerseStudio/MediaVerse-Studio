@@ -130,6 +130,21 @@ pub fn embedding_problem(image: &CoverImage) -> Option<String> {
         .then(|| "it is a progressive JPEG".to_owned())
 }
 
+/// Why a new picture may not go inside a song, if it may not (owner, 2026-11-05 and 2026-11-26: JPEG only, at most
+/// 1000 × 1000 pixels; the byte limit is the tag writer's). A picture whose size cannot be read is left to the writer.
+pub fn song_picture_problem(data: &[u8]) -> Option<String> {
+    if data.starts_with(&[0x89, b'P', b'N', b'G']) {
+        return Some("A picture inside a song must be a JPEG, not a PNG.".to_owned());
+    }
+    let info = image_info(data)?;
+    (info.width.max(info.height) > EMBED_MAX_SIDE).then(|| {
+        format!(
+            "A picture inside a song must be at most {EMBED_MAX_SIDE} × {EMBED_MAX_SIDE} pixels; this one is {} × {}.",
+            info.width, info.height
+        )
+    })
+}
+
 /// The kind and pixel size of a JPEG or PNG, without the checks for downloads (any size is reported).
 pub fn image_info(bytes: &[u8]) -> Option<ImageInfo> {
     if bytes.starts_with(&[0xFF, 0xD8, 0xFF]) {

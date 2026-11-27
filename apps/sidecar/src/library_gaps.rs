@@ -1,6 +1,8 @@
-//! Finds what the library is missing: albums without a cover picture and tracks without lyrics, for the Review page.
-//! Reads only tag headers and file names. A cover counts as present if the MP3 has an embedded picture or the folder
-//! holds a cover image; lyrics count as present if the MP3 has them in its tags or a `.lrc` file sits beside the song.
+//! Finds what the library is missing: songs without their pictures and tracks without lyrics, for the Review page.
+//! Reads only tag headers, folder listings and picture files. An MP3 has a cover only when a front cover is inside the
+//! song itself: a picture file in the folder does not count (owner, 2026-11-26: every song carries its artwork; folder
+//! pictures had been counted, which hid half the library). Other formats still use the folder's cover file (FLAC keeps
+//! `cover.jpg`, D15). Lyrics count as present if the MP3 has them in its tags or a `.lrc` file sits beside the song.
 
 use mediaverse_ripper::id3;
 use serde_json::{Value, json};
@@ -11,17 +13,19 @@ use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 const AUDIO: [&str; 7] = ["mp3", "flac", "wav", "m4a", "aac", "ogg", "opus"];
-const FOLDER_COVERS: [&str; 6] = [
-    "cover.jpg",
-    "cover.png",
-    "folder.jpg",
-    "folder.png",
-    "front.jpg",
-    "front.png",
+/// The picture files an album folder may hold, as (kind, name without extension), best name first.
+const FOLDER_ART: [(&str, &str); 5] = [
+    ("front", "cover"),
+    ("front", "folder"),
+    ("front", "front"),
+    ("back", "back"),
+    ("artist", "artist"),
 ];
+const FOLDER_ART_TYPES: [&str; 3] = ["jpg", "jpeg", "png"];
+const MAX_FOLDER_ART_BYTES: u64 = 40 * 1024 * 1024;
 const MAX_DEPTH: usize = 8;
 const MAX_FILES: usize = 200_000;
-const MAX_TAG_BYTES: usize = 12 * 1024 * 1024;
+const MAX_TAG_BYTES: usize = id3::MAX_TAG_BYTES;
 
 fn collect(dir: &Path, depth: usize, out: &mut Vec<std::path::PathBuf>) {
     if depth > MAX_DEPTH || out.len() >= MAX_FILES {
@@ -75,23 +79,43 @@ fn mp3_frames(file: &Path) -> Option<Vec<id3::Frame>> {
     id3::read_frames(&tag).ok()
 }
 
-/// The largest cover file in a folder, as (width, height).
-fn folder_cover_size(dir: &Path) -> Option<(u32, u32)> {
-    FOLDER_COVERS
-        .iter()
-        .filter_map(|name| {
-            let path = dir.join(name);
-            std::fs::metadata(&path).ok().filter(|m| m.is_file())?;
-            // The size is in the first part of the file (a JPEG's frame header, a PNG's IHDR).
-            let mut head = vec![0u8; 256 * 1024];
-            let mut handle = std::fs::File::open(&path).ok()?;
-            let read = handle.read(&mut head).ok()?;
-            head.truncate(read);
-            crate::cover_art::image_info(&head).map(|i| (i.width, i.height))
-        })
-        .max_by_key(|(w, h)| (*w).min(*h))
+/// FNV-1a of a picture's bytes: the same picture has the same name wherever it is stored.
+fn picture_hash(bytes: &[u8]) -> String {
+    let hash = bytes.iter().fold(0xcbf2_9ce4_8422_2325u64, |h, b| {
+        (h ^ u64::from(*b)).wrapping_mul(0x0100_0000_01b3)
+    });
+    format!("{hash:016x}-{}", bytes.len())
 }
 
+/// Largest picture inside a song that needs no re-encoding (the tag writer's limit).
+const MAX_EMBED_BYTES: usize = 500 * 1024;
+
+/// Whether a JPEG's label in the tag says it is something else (566 of the owner's songs said `image/png`): players
+/// that believe the label cannot show it.
+fn mislabelled(data: &[u8], declared: &str) -> bool {
+    data.starts_with(&[0xFF, 0xD8, 0xFF])
+        && !["image/jpeg", "image/jpg"]
+            .iter()
+            .any(|right| declared.eq_ignore_ascii_case(right))
+}
+
+/// A picture as the page compares it: `{hash, width, height, bytes, ok, relabel}`; `ok` says it can be copied into
+/// songs as it is (a JPEG within 1000 pixels and the size limit); `relabel`: its label in this song is wrong. A
+/// picture whose size cannot be read has width and height 0. `declared`: the tag's label (`None` for a file).
+fn picture_json(data: &[u8], declared: Option<&str>) -> Option<Value> {
+    crate::library_cover::mime_of(data)?;
+    let info = crate::cover_art::image_info(data);
+    let (width, height) = info.as_ref().map_or((0, 0), |i| (i.width, i.height));
+    let ok = info.as_ref().is_some_and(|i| {
+        i.kind != crate::cover_art::Kind::Png
+            && i.width.max(i.height) <= crate::cover_art::EMBED_MAX_SIDE
+            && data.len() <= MAX_EMBED_BYTES
+    });
+    let relabel = declared.is_some_and(|label| mislabelled(data, label));
+    Some(
+        json!({ "hash": picture_hash(data), "width": width, "height": height, "bytes": data.len(), "ok": ok, "relabel": relabel }),
+    )
+}
 const PICTURE_NAMES: [(u8, &str); 3] = [(3, "front_cover"), (4, "back_cover"), (8, "artist_photo")];
 
 /// Owner, 2026-11-05: pictures inside the songs are JPEG, at most 1000 × 1000 pixels, under 500 KB and ideally under
@@ -101,7 +125,10 @@ fn breaks_embedding_rules(width: u32, height: u32, bytes: usize, png: bool) -> b
     width.max(height) > crate::cover_art::EMBED_MAX_SIDE || png || bytes > IDEAL_EMBED_BYTES
 }
 
-/// `{files: [{path, cover, lyrics, mp3, cover_size, embed_issues}]}` for every audio file under `root`:
+/// `{files: [{path, cover, lyrics, mp3, cover_size, embed_issues, art}], folders: {dir: art}}` for every audio file
+/// under `root`. `cover`: an MP3 has a front cover inside it (another format: its folder has a cover file). `art` (MP3
+/// only) is `{front, back, artist}`, the pictures inside the song; `folders` gives the same three for each song folder's
+/// picture files, with their `file` name (`up: true`: an artist photo from the folder above).
 /// `cover_size` is the pixel size of the best front cover there is (in the song or the folder) as [width, height];
 /// `embed_issues` lists the song's pictures that break the embedding rules, each `{kind, width, height, kb, png}`.
 /// Calls `progress(done, total)` now and then.
@@ -164,21 +191,54 @@ pub fn scan_with_cache(
         .into_iter()
         .filter_map(|slot| slot.into_inner().ok().flatten())
         .collect();
-    json!({ "files": entries })
+    let art = folders
+        .into_inner()
+        .map(|seen| folder_art_reply(&seen, &known_folders))
+        .unwrap_or_default();
+    json!({ "files": entries, "folders": art })
+}
+
+/// Each song folder's picture files. A folder without its own artist photo borrows one from the folder above.
+fn folder_art_reply(
+    seen: &HashMap<PathBuf, FolderCover>,
+    known: &HashMap<String, FolderCover>,
+) -> serde_json::Map<String, Value> {
+    let above: Mutex<HashMap<PathBuf, FolderCover>> = Mutex::new(HashMap::new());
+    seen.iter()
+        .map(|(dir, folder)| {
+            let mut art = folder.art.clone();
+            if art["artist"].is_null()
+                && let Some(parent) = dir.parent()
+            {
+                let photo = seen.get(parent).map_or_else(
+                    || folder_cover(&above, known, parent).art["artist"].clone(),
+                    |found| found.art["artist"].clone(),
+                );
+                if photo.is_object() {
+                    art["artist"] = photo;
+                    art["artist"]["up"] = json!(true);
+                }
+            }
+            (dir.to_string_lossy().into_owned(), art)
+        })
+        .collect()
 }
 
 /// How many files are read at once: a network share answers many requests together far faster than one after another, and a local disk loses nothing.
 const WORKERS: usize = 12;
 
-/// A folder's cover files: whether there is one, the size of the largest, and how each file looked (name, size, modified time) when that was worked out.
+/// A folder's picture files: whether there is a front cover, its size, what each kind holds, and how each file looked
+/// (name, size, modified time) when that was worked out.
 #[derive(Clone)]
 struct FolderCover {
     has: bool,
     size: Option<(u32, u32)>,
+    art: Value,
     stamps: Vec<(String, u64, u64)>,
 }
 
-/// What a folder's cover files are. The pictures are only opened (to read their size) when the files are not the ones remembered from the last scan.
+/// What a folder's picture files are, from one listing of the folder. The pictures are only opened when the files are
+/// not the ones remembered from the last scan.
 fn folder_cover(
     folders: &Mutex<HashMap<PathBuf, FolderCover>>,
     remembered: &HashMap<String, FolderCover>,
@@ -190,21 +250,33 @@ fn folder_cover(
         return found.clone();
     }
     // Not held while the folder is read: two workers reaching a new folder at once both ask, which is only a little wasted work.
-    let stamps: Vec<(String, u64, u64)> = FOLDER_COVERS
+    // (kind, preference, file name, size, modified)
+    let mut found_files: Vec<(&str, usize, String, u64, u64)> = Vec::new();
+    for entry in std::fs::read_dir(dir).into_iter().flatten().flatten() {
+        let name = entry.file_name().to_string_lossy().into_owned();
+        let lower = name.to_ascii_lowercase();
+        let Some((stem, extension)) = lower.rsplit_once('.') else {
+            continue;
+        };
+        if !FOLDER_ART_TYPES.contains(&extension) {
+            continue;
+        }
+        let Some(rank) = FOLDER_ART.iter().position(|(_, wanted)| *wanted == stem) else {
+            continue;
+        };
+        let Some((len, modified)) = entry.metadata().ok().and_then(|m| stamp_of(&m)) else {
+            continue;
+        };
+        found_files.push((FOLDER_ART[rank].0, rank, name, len, modified));
+    }
+    found_files.sort_by(|a, b| a.1.cmp(&b.1).then_with(|| a.2.cmp(&b.2)));
+    let stamps: Vec<(String, u64, u64)> = found_files
         .iter()
-        .filter_map(|name| {
-            let (len, modified) = stamp(&dir.join(name))?;
-            Some(((*name).to_owned(), len, modified))
-        })
+        .map(|(_, _, name, len, modified)| (name.clone(), *len, *modified))
         .collect();
-    let size = match remembered.get(dir.to_string_lossy().as_ref()) {
-        Some(old) if old.stamps == stamps => old.size,
-        _ => folder_cover_size(dir),
-    };
-    let found = FolderCover {
-        has: !stamps.is_empty(),
-        size,
-        stamps,
+    let found = match remembered.get(dir.to_string_lossy().as_ref()) {
+        Some(old) if old.stamps == stamps => old.clone(),
+        _ => read_folder_art(dir, &found_files, stamps),
     };
     if let Ok(mut map) = folders.lock() {
         map.insert(dir.to_path_buf(), found.clone());
@@ -212,6 +284,56 @@ fn folder_cover(
     found
 }
 
+/// Opens the picture files and keeps, for each kind, the largest one (the preferred name when two are as large).
+fn read_folder_art(
+    dir: &Path,
+    files: &[(&str, usize, String, u64, u64)],
+    stamps: Vec<(String, u64, u64)>,
+) -> FolderCover {
+    let mut art = json!({ "front": null, "back": null, "artist": null, "png": [] });
+    let mut size: Option<(u32, u32)> = None;
+    // The kinds that have a PNG file here (picture files are to be JPEG too).
+    for (kind, _, name, _, _) in files {
+        if name.to_ascii_lowercase().ends_with(".png")
+            && let Some(list) = art["png"].as_array_mut()
+        {
+            list.push(json!({ "kind": kind, "file": name }));
+        }
+    }
+    for (kind, _, name, len, _) in files {
+        if *len > MAX_FOLDER_ART_BYTES {
+            continue;
+        }
+        let Some(mut picture) = std::fs::read(dir.join(name))
+            .ok()
+            .and_then(|bytes| picture_json(&bytes, None))
+        else {
+            continue;
+        };
+        let side = |v: &Value| {
+            v["width"]
+                .as_u64()
+                .unwrap_or(0)
+                .min(v["height"].as_u64().unwrap_or(0))
+        };
+        if art[*kind].is_object() && side(&art[*kind]) >= side(&picture) {
+            continue;
+        }
+        picture["file"] = json!(name);
+        if *kind == "front" {
+            let pair = |key: &str| u32::try_from(picture[key].as_u64().unwrap_or(0)).unwrap_or(0);
+            let found = (pair("width"), pair("height"));
+            size = (found.0 > 0).then_some(found);
+        }
+        art[*kind] = picture;
+    }
+    FolderCover {
+        has: art["front"].is_object(),
+        size,
+        art,
+        stamps,
+    }
+}
 /// What a song's own tag held when it was last read: the part of the answer that depends on the file alone.
 #[derive(Clone)]
 struct Facts {
@@ -222,6 +344,8 @@ struct Facts {
     tag_lyrics: bool,
     /// The largest front cover inside the song, as (width, height).
     embedded_best: Option<(u32, u32)>,
+    /// The front cover, back cover and artist photo inside the song (`{front, back, artist}`, each `picture_json` or null).
+    art: Value,
     /// Pictures inside the song that break the embedding rules (`{kind, width, height, kb, png}`).
     issues: Vec<Value>,
 }
@@ -234,7 +358,8 @@ impl Facts {
             self.embedded_cover,
             self.tag_lyrics,
             self.embedded_best.map(|(w, h)| json!([w, h])),
-            self.issues
+            self.issues,
+            self.art
         ])
     }
 
@@ -254,13 +379,20 @@ impl Facts {
             tag_lyrics: list.get(3)?.as_bool()?,
             embedded_best: size(list.get(4)?),
             issues: list.get(5)?.as_array()?.clone(),
+            art: list.get(6)?.clone(),
         })
     }
 }
 
 /// The file's size and modified time, which say whether it changed since it was read.
 fn stamp(file: &Path) -> Option<(u64, u64)> {
-    let meta = std::fs::metadata(file).ok().filter(|m| m.is_file())?;
+    stamp_of(&std::fs::metadata(file).ok()?)
+}
+
+fn stamp_of(meta: &std::fs::Metadata) -> Option<(u64, u64)> {
+    if !meta.is_file() {
+        return None;
+    }
     let modified = meta
         .modified()
         .ok()?
@@ -276,19 +408,35 @@ fn read_facts(file: &Path, len: u64, modified: u64) -> Facts {
     let mut facts = Facts {
         len,
         modified,
-        embedded_cover: frames
-            .as_ref()
-            .is_some_and(|f| f.iter().any(|fr| fr.id == "APIC")),
+        embedded_cover: false,
         tag_lyrics: frames
             .as_ref()
             .is_some_and(|f| f.iter().any(|fr| fr.id == "USLT" || fr.id == "SYLT")),
         embedded_best: None,
+        art: json!({ "front": null, "back": null, "artist": null }),
         issues: Vec::new(),
     };
+    // A cover stored as type 0 ("Other") is the front cover only when no picture is labelled as one.
+    let mut other_front = Value::Null;
     for frame in frames.iter().flatten().filter(|f| f.id == "APIC") {
-        let Ok((_, kind, data)) = id3::frame_picture(frame) else {
+        let Ok((declared, kind, data)) = id3::frame_picture(frame) else {
             continue;
         };
+        if let Some(picture) = picture_json(&data, Some(&declared)) {
+            let slot = match kind {
+                3 => Some("front"),
+                4 => Some("back"),
+                8 => Some("artist"),
+                _ => None,
+            };
+            match slot {
+                Some(slot) if facts.art[slot].is_null() => facts.art[slot] = picture,
+                None if kind == id3::OTHER_PICTURE && other_front.is_null() => {
+                    other_front = picture;
+                }
+                _ => {}
+            }
+        }
         let Some(info) = crate::cover_art::image_info(&data) else {
             continue;
         };
@@ -302,14 +450,19 @@ fn read_facts(file: &Path, len: u64, modified: u64) -> Facts {
             facts.embedded_best = Some((info.width, info.height));
         }
         let png = info.kind == crate::cover_art::Kind::Png;
-        if breaks_embedding_rules(info.width, info.height, data.len(), png) {
+        let label = mislabelled(&data, &declared);
+        if label || breaks_embedding_rules(info.width, info.height, data.len(), png) {
             let name = PICTURE_NAMES
                 .iter()
                 .find(|(k, _)| *k == kind)
                 .map_or("other", |(_, n)| n);
-            facts.issues.push(json!({ "kind": name, "width": info.width, "height": info.height, "kb": data.len() / 1024, "png": png }));
+            facts.issues.push(json!({ "kind": name, "width": info.width, "height": info.height, "kb": data.len() / 1024, "png": png, "label": label }));
         }
     }
+    if facts.art["front"].is_null() {
+        facts.art["front"] = other_front;
+    }
+    facts.embedded_cover = facts.art["front"].is_object();
     facts
 }
 
@@ -339,7 +492,11 @@ fn scan_file(
     let folder = file
         .parent()
         .map(|dir| folder_cover(folders, remembered_folders, dir));
-    let cover = embedded_cover || folder.as_ref().is_some_and(|f| f.has);
+    let cover = if is_mp3 {
+        embedded_cover
+    } else {
+        folder.as_ref().is_some_and(|f| f.has)
+    };
     // (the `.lrc` file is only looked for when the tag has no lyrics: one question fewer for most songs)
     let lyrics = tag_lyrics || file.with_extension("lrc").is_file();
     // The best front cover: the folder's, unless one inside the song is larger.
@@ -353,13 +510,14 @@ fn scan_file(
     let entry = json!({
         "path": file.to_string_lossy(), "cover": cover, "lyrics": lyrics, "mp3": is_mp3,
         "cover_size": best.map(|(w, h)| json!([w, h])), "embed_issues": issues,
+        "art": facts.as_ref().map(|f| f.art.clone()),
     });
     (entry, facts)
 }
 
-const CACHE_VERSION: u64 = 2;
+const CACHE_VERSION: u64 = 4;
 
-/// A folder's cover files as stored: `[[[name, size, modified], ...], [width, height] | null]`.
+/// A folder's picture files as stored: `[[[name, size, modified], ...], [width, height] | null, art]`.
 fn folder_to_json(folder: &FolderCover) -> Value {
     json!([
         folder
@@ -367,7 +525,8 @@ fn folder_to_json(folder: &FolderCover) -> Value {
             .iter()
             .map(|(name, len, modified)| json!([name, len, modified]))
             .collect::<Vec<_>>(),
-        folder.size.map(|(w, h)| json!([w, h]))
+        folder.size.map(|(w, h)| json!([w, h])),
+        folder.art
     ])
 }
 
@@ -393,9 +552,11 @@ fn folder_from_json(value: &Value) -> Option<FolderCover> {
             u32::try_from(pair.get(1)?.as_u64()?).ok()?,
         ))
     });
+    let art = list.get(2)?.clone();
     Some(FolderCover {
-        has: !stamps.is_empty(),
+        has: art["front"].is_object(),
         size,
+        art,
         stamps,
     })
 }
@@ -534,8 +695,13 @@ mod tests {
         )
         .unwrap();
         let second = scan_with_cache(&root, Some(&cache), &mut |_, _| {});
-        assert_eq!(second["files"][0]["cover"], true);
+        assert_eq!(
+            second["files"][0]["cover"], false,
+            "a picture in the folder is not a picture in the song"
+        );
         assert_eq!(second["files"][0]["cover_size"], json!([600, 600]));
+        let dir = root.join("Album").to_string_lossy().into_owned();
+        assert_eq!(second["folders"][&dir]["front"]["file"], "cover.jpg");
 
         // The song gets lyrics (its size and time change): read again.
         mp3(
@@ -613,7 +779,7 @@ mod tests {
         assert_eq!(get("Big")["cover_size"], json!([1400, 1400]));
         assert_eq!(
             get("Big")["embed_issues"],
-            json!([{ "kind": "front_cover", "width": 1400, "height": 1400, "kb": 0, "png": false }])
+            json!([{ "kind": "front_cover", "width": 1400, "height": 1400, "kb": 0, "png": false, "label": false }])
         );
         assert_eq!(get("None")["cover_size"], Value::Null);
         assert!(
@@ -625,6 +791,84 @@ mod tests {
             breaks_embedding_rules(800, 800, 300 * 1024, false),
             "200 to 500 KB is listed too"
         );
+    }
+
+    #[test]
+    fn each_songs_pictures_and_the_folder_pictures_are_reported_for_comparing() {
+        let root = std::env::temp_dir().join(format!("mv-gaps-art-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let album = root.join("Band").join("LP");
+        let front = sized_jpeg(600, 600, 0);
+        let picture = |kind, data: &[u8]| Picture {
+            kind,
+            data: data.to_vec(),
+        };
+        let plain = TagSet {
+            title: "x".into(),
+            ..TagSet::default()
+        };
+        mp3(
+            &album.join("01.mp3"),
+            &TagSet {
+                pictures: vec![
+                    picture(PictureKind::FrontCover, &front),
+                    picture(PictureKind::BackCover, &sized_jpeg(1400, 1400, 0)),
+                ],
+                ..plain.clone()
+            },
+        );
+        // Only a back cover: still no front cover.
+        mp3(
+            &album.join("02.mp3"),
+            &TagSet {
+                pictures: vec![picture(PictureKind::BackCover, &front)],
+                ..plain.clone()
+            },
+        );
+        std::fs::write(album.join("Folder.JPG"), &front).unwrap();
+        std::fs::write(album.join("AlbumArtSmall.jpg"), sized_jpeg(75, 75, 0)).unwrap();
+        std::fs::write(
+            root.join("Band").join("artist.jpg"),
+            sized_jpeg(800, 800, 0),
+        )
+        .unwrap();
+        let found = scan(&root, &mut |_, _| {});
+        let first = &found["files"][0];
+        let second = &found["files"][1];
+        assert_eq!(
+            (&first["cover"], &second["cover"]),
+            (&json!(true), &json!(false))
+        );
+        assert_eq!(first["art"]["front"]["ok"], true);
+        assert_eq!(first["art"]["back"]["ok"], false, "over 1000 pixels");
+        let folder = &found["folders"][&album.to_string_lossy().into_owned()];
+        assert_eq!(folder["front"]["file"], "Folder.JPG");
+        assert_eq!(
+            folder["front"]["hash"], first["art"]["front"]["hash"],
+            "the same picture has the same name in a song and in the folder"
+        );
+        assert_eq!(folder["back"], Value::Null);
+        assert_eq!(
+            (&folder["artist"]["file"], &folder["artist"]["up"]),
+            (&json!("artist.jpg"), &json!(true))
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn a_jpeg_labelled_as_something_else_is_reported() {
+        let jpeg = sized_jpeg(600, 600, 0);
+        assert_eq!(
+            picture_json(&jpeg, Some("image/png")).unwrap()["relabel"],
+            true
+        );
+        assert_eq!(picture_json(&jpeg, Some("PNG")).unwrap()["relabel"], true);
+        assert_eq!(
+            picture_json(&jpeg, Some("image/JPG")).unwrap()["relabel"],
+            false
+        );
+        assert_eq!(picture_json(&jpeg, None).unwrap()["relabel"], false);
+        assert_eq!(picture_json(&jpeg, None).unwrap()["bytes"], jpeg.len());
     }
 
     #[test]
@@ -687,8 +931,8 @@ mod tests {
         assert_eq!(get("Words")["cover"], false);
         assert_eq!(
             get("Folder")["cover"],
-            true,
-            "a cover image in the folder counts"
+            false,
+            "a cover image in the folder does not put one in the song"
         );
         assert_eq!(
             get("Beside")["lyrics"],

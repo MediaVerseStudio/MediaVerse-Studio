@@ -19,22 +19,22 @@ import { lyricTimeBox } from "./lyric-time-panel";
 import { lyricWrongBox } from "./lyric-wrong-panel";
 import { lyricPhotosBox } from "./lyric-photos-panel";
 import { infoButton, type InfoBlock } from "./info-popup";
-import { imageSize, nativeCopy, prepareImage } from "./image-prep";
-import { type FileResult, PICTURE_LIMITS, type PictureKindName, picturesRequest, wantsFolderCopy } from "./media-request";
+import { nativeCopy, prepareImage } from "./image-prep";
+import { initArtworkFill, pictureFaults, problemList, runPictureRun } from "./artwork-fill-panel";
+import type { FillProblem } from "./artwork-fill";
+import { describeEnd, history, modeButtons, onRunChange, runView, runningTitle, startRun, undoBar } from "./run-controller";
+import type { RunMode } from "./timed-run";
+import { ART_NAMES, type AlbumPlan, type ArtworkPlan, type FolderArt, PICTURE_KIND, type PngFolder, albumsLackingFront, planArtwork, planResize, pngFolderPictures, songsToWrite } from "./artwork-plan";
+import { type FileResult, type PictureKindName, picturesRequest } from "./media-request";
 import {
   type AlbumGap,
   type DefectResult,
-  type EmbedIssue,
   type MediaChange,
   type GapFile,
   type GapTrack,
-  OVERSIZED_GROUPS,
-  type OversizedGroup,
-  oversizedGroup,
-  albumsWithLargeEmbedded,
   albumsWithLowCover,
-  albumsWithoutCover,
   albumsWithoutLyrics,
+  checkProblem,
   markSaved,
 } from "./review-data";
 
@@ -57,6 +57,8 @@ export type ReviewPanelDeps = {
   titlesChanged: (message: string) => void;
   /** The playlists, for the "Needs re-ripping" list made from songs with no sound. */
   playlists: PlaylistStore;
+  /** Review > Artists' free artist photos, shown with the artwork too. */
+  artistPhotos?: { element: HTMLElement; show: () => void; redraw: () => void };
 };
 
 const playable = (t: GapTrack): PlayableTrack => ({ title: t.title, artist: t.artist, source_uri: t.source_uri, album: t.album });
@@ -66,6 +68,8 @@ export function initReviewPanels(
   deps: ReviewPanelDeps,
 ): { showArtwork: () => void; showLyrics: () => void; showDefects: () => void; invalidate: () => void; openLyricsEditor: (track: PlayableTrack) => void; mediaSaved: (saved: { paths: string[] } & MediaChange) => void } {
   let files: GapFile[] | null = null;
+  /** Each album folder's picture files, from the same check. */
+  let folderArt: Record<string, FolderArt> = {};
   let scanning = false;
 
   async function loadGaps(root: HTMLElement, rerender: () => void): Promise<void> {
@@ -74,11 +78,12 @@ export function initReviewPanels(
     const checking = createProgress("Checking your library");
     root.replaceChildren(checking.element);
     try {
-      const reply = await runJob<{ files: GapFile[] }>("library_gaps", {}, (p) => {
+      const reply = await runJob<{ files: GapFile[]; folders?: Record<string, FolderArt> }>("library_gaps", {}, (p) => {
         const { done, total } = progressCounts(p);
         checking.set(done, total);
       });
       checking.stop();
+      folderArt = reply.folders ?? {};
       files = reply.files;
     } catch (thrown) {
       checking.stop();
@@ -100,20 +105,56 @@ export function initReviewPanels(
     return button;
   };
 
-  // ---- Artwork: albums with no cover, a low-resolution cover, or pictures too large inside the songs ----
+  /** Shows why there is nothing to report, in place of the page, when the check could not compare any song. */
+  function nothingChecked(root: HTMLElement, rerender: () => void): boolean {
+    const problem = checkProblem(files ?? [], deps.libraryTracks());
+    if (!problem) return false;
+    root.replaceChildren(el("p", "result-warning", problem), rescanButton(root, rerender));
+    return true;
+  }
+
+  /** Pictures were saved: the changed songs are read again behind the page, which then shows what is really in them. */
+  let rechecking = false;
+  let recheckAgain = false;
+  async function recheckArtwork(): Promise<void> {
+    if (rechecking) {
+      recheckAgain = true;
+      return;
+    }
+    rechecking = true;
+    redrawArtwork();
+    try {
+      do {
+        recheckAgain = false;
+        const reply = await runJob<{ files: GapFile[]; folders?: Record<string, FolderArt> }>("library_gaps", {});
+        folderArt = reply.folders ?? {};
+        files = reply.files;
+      } while (recheckAgain);
+    } catch {
+      files = null; // the next visit checks again
+    }
+    rechecking = false;
+    redrawArtwork();
+  }
+  const redrawArtwork = (): void => {
+    const root = roots.artwork;
+    if (root.isConnected && !root.closest("[hidden]")) renderArtwork(root);
+  };
+  const fill = initArtworkFill({
+    beforePictureEdit: (paths) => deps.beforePictureEdit(paths),
+    redraw: () => redrawArtwork(),
+    changed: () => {
+      deps.picturesChanged();
+      redrawArtwork();
+    },
+  });
+  const artworkPlan = () => planArtwork(files ?? [], deps.libraryTracks(), folderArt, fill.picks());
+
+  // ---- Artwork: songs without their pictures, a low-resolution cover, or pictures too large inside the songs ----
   type ArtView = "missing" | "low" | "large";
   let artView: ArtView = "missing";
-  let fixing: { done: number; total: number; stop: boolean } | null = null;
   let fixNote = "";
   const LOW_KEY = "mediaverse.low-res-threshold";
-  const UNDO_KEY = "mediaverse.last-picture-fix";
-  const GROUP_TITLES: Record<OversizedGroup, string> = { resize: "Need resizing: over 1000 × 1000 pixels", over500: "Large JPEGs: 500 KB or more", png: "PNG pictures: convert to JPEG", over200: "Too much data: 200 to 500 KB" };
-  const GROUP_HINTS: Record<OversizedGroup, string> = {
-    resize: "Shrunk to fit 1000 × 1000 inside the songs; the full size is kept in the album folder.",
-    over500: "Stored again as JPEG at the same size, at the best quality that fits.",
-    png: "Converted to JPEG at the same size (smaller files that every player shows), each or all at once; or find a better cover for an album.",
-    over200: "Within the 500 KB limit but over the ideal 200 KB. Fixing only helps when it can get smaller without visible loss; you can ignore these.",
-  };
   const stored = (key: string): string | null => {
     try {
       return localStorage.getItem(key);
@@ -131,9 +172,6 @@ export function initReviewPanels(
   };
   /** Owner, 2026-11-05: replace artwork under 500 × 500, or standardise on 1000 × 1000. */
   let lowThreshold = stored(LOW_KEY) === "1000" ? 1000 : 500;
-
-  const KIND_NAMES: Record<string, string> = { front_cover: "Front cover", back_cover: "Back cover", artist_photo: "Artist photo", other: "Other picture" };
-  const describeIssue = (i: EmbedIssue): string => `${KIND_NAMES[i.kind] ?? i.kind} ${i.width} × ${i.height}${i.png ? " · PNG" : ""} · ${i.kb >= 1024 ? `${(i.kb / 1024).toFixed(1)} MB` : `${i.kb} KB`}`;
 
   function gapTable(gaps: AlbumGap[], columns: [string, boolean, (gap: AlbumGap) => string][], action: (gap: AlbumGap) => HTMLElement): HTMLElement {
     const table = el("table", "gap-table");
@@ -166,91 +204,125 @@ export function initReviewPanels(
   const openButton = (label: string) => (gap: AlbumGap): HTMLElement =>
     gap.mp3Paths.length > 0 || (gap.albumMp3Paths?.length ?? 0) > 0 ? button(label, () => deps.openAlbumPictures(gap)) : el("span", "field-hint", "Not MP3: put a cover.jpg in the folder");
 
-  /**
-   * Brings one album's pictures within the embedding rules: each picture that is over 1000 pixels, a PNG or 500 KB
-   * or more is stored again in the songs as a JPEG of at most 1000 × 1000 (owner, 2026-11-05), and its full size is
-   * kept in the album folder when the folder has no picture of that kind at least as large. Journalled as `batch`.
-   */
-  async function fixAlbum(gap: AlbumGap, batch: string): Promise<string | null> {
-    const paths = gap.albumMp3Paths ?? gap.mp3Paths;
-    const kinds = [...new Set((gap.issues ?? []).map((i) => i.kind))].filter((k): k is PictureKindName => k !== "other");
-    if (paths.length === 0 || kinds.length === 0) return "nothing to fix here";
-    const reply = await invoke<{ folder?: Record<PictureKindName, { width: number; height: number } | null> } & Record<PictureKindName, { mime: string; data_base64: string; from: string } | null>>("album_pictures", { paths });
-    const pictures: { kind: PictureKindName; base64: string }[] = [];
-    const folder: { kind: PictureKindName; base64: string }[] = [];
-    for (const kind of kinds) {
-      const picture = reply[kind];
-      if (!picture || picture.from !== "embedded") continue;
-      const original = blobFromBase64(picture.data_base64, picture.mime);
-      const size = await imageSize(original);
-      const prepared = await prepareImage(original);
-      // A JPEG already within 1000 pixels that would not get smaller is left as it is (no quality lost for nothing).
-      if (picture.mime === "image/jpeg" && Math.max(size.width, size.height) <= PICTURE_LIMITS.maxSide && prepared.bytes >= original.size) {
-        URL.revokeObjectURL(prepared.previewUrl);
-        continue;
+  // ---- Oversized images: every picture inside a song that breaks the rules, and PNG picture files in album folders ----
+  let oversizedProblems: FillProblem[] = [];
+  let oversizedShown = 100;
+
+  function fixPictures(albums: AlbumPlan[], mode: RunMode): void {
+    fixNote = "";
+    oversizedProblems = [];
+    runPictureRun(albums, mode, { title: "Fixing oversized pictures", history: "Oversized pictures fixed", question: "Store the pictures properly in" }, deps.beforePictureEdit, (note, problems) => {
+      fixNote = note;
+      oversizedProblems = problems;
+      deps.picturesChanged();
+      redrawArtwork();
+    });
+  }
+
+  /** Saves each folder's picture as a full-size JPEG; the PNG (and any file it replaces) is moved aside, with Undo. */
+  function convertFolderPictures(list: PngFolder[], mode: RunMode): void {
+    if (!window.confirm(`Save the pictures of ${list.length} album folder${list.length === 1 ? "" : "s"} as JPEG, at their full size?\n\nThe PNG files are moved into the program's data folder, not deleted. You can undo this.`)) return;
+    const id = `jpg-${Date.now()}`;
+    let done = 0;
+    const problems: FillProblem[] = [];
+    fixNote = "";
+    oversizedProblems = [];
+    void startRun({
+      title: "Saving folder pictures as JPEG",
+      unit: "folders",
+      mode,
+      items: list.map((item, index) => ({ item, batch: `${id}-${index}` })),
+      label: ({ item }) => item.folder,
+      step: async ({ item, batch }) => {
+        try {
+          const picture = await invoke<{ mime: string; data_base64: string }>("art_source", { kind: item.kind, path: item.path, file: item.file });
+          const full = await nativeCopy(blobFromBase64(picture.data_base64, picture.mime));
+          history.add(id, "Folder pictures saved as JPEG", batch);
+          const reply = await invoke<{ folder: { ok: boolean; error?: string }[] }>("update_track_media", picturesRequest([item.path], [], [{ kind: PICTURE_KIND[item.kind], base64: full.base64 }], batch));
+          const failed = reply.folder.find((f) => !f.ok);
+          if (failed) throw new Error(failed.error ?? "it failed");
+          done += 1;
+          return "ok";
+        } catch (thrown) {
+          problems.push({ path: `${item.folder}/${item.file}`, message: describeError(toApiError(thrown)) });
+          return "failed";
+        }
+      },
+    }).then((report) => {
+      if (!report) return;
+      fixNote = `${done} folder picture${done === 1 ? "" : "s"} saved as JPEG. ${describeEnd(report, `${report.left} folders`)}`;
+      oversizedProblems = problems;
+      deps.picturesChanged();
+      redrawArtwork();
+    });
+  }
+
+  function renderOversized(root: HTMLElement, albums: AlbumPlan[], pngs: PngFolder[]): void {
+    root.append(el("p", undefined, "Every picture inside a song is to be a JPEG of at most 1000 × 1000 pixels and under 500 KB. Fixing stores each one that way, in the songs that have it; a larger original is kept at full size, as a JPEG, in the album folder."));
+    if (fixNote) root.append(el("p", "field-hint", fixNote));
+    if (oversizedProblems.length) root.append(problemList(oversizedProblems));
+    if (rechecking) {
+      root.append(el("p", "field-hint", "Checking the changed songs…"));
+      return;
+    }
+    const others = (files ?? []).filter((f) => f.embed_issues?.some((i) => i.kind === "other")).length;
+    if (others) root.append(el("p", "result-warning", `${others} songs also carry another kind of picture (a leaflet or disc scan, say) that breaks these limits; this does not change those.`));
+    root.append(el("h3", undefined, `Pictures inside the songs (${albums.length} album${albums.length === 1 ? "" : "s"})`));
+    if (albums.length === 0) root.append(el("p", undefined, "None: every front cover, rear cover and artist photo inside the songs is a JPEG within the limits."));
+    else {
+      root.append(modeButtons(`Fix ${albums.length} album${albums.length === 1 ? "" : "s"} (${songsToWrite(albums).toLocaleString("en-US")} songs):`, (mode) => fixPictures(albums, mode)));
+      const table = el("table", "gap-table");
+      const head = el("tr");
+      for (const label of ["Album", "Album artist", "Songs", "What is wrong", ""]) head.append(el("th", label === "Songs" ? "num" : undefined, label));
+      const thead = el("thead");
+      thead.append(head);
+      const body = el("tbody");
+      for (const album of albums.slice(0, oversizedShown)) {
+        const row = el("tr");
+        const what = el("td");
+        // Pictures that read the same (an album with a slightly different one on every song) are one line.
+        const faults = new Map<string, number>();
+        for (const { kind, target, paths } of album.kinds) {
+          const text = `${ART_NAMES[kind]} ${target.width} × ${target.height}, ${target.bytes ? `${Math.round(target.bytes / 1024).toLocaleString("en-US")} KB, ` : ""}${pictureFaults(target)}`;
+          faults.set(text, (faults.get(text) ?? 0) + paths.length);
+        }
+        for (const [text, count] of faults) what.append(el("div", undefined, `${text} (${count} song${count === 1 ? "" : "s"})`));
+        const actions = el("span", "row-actions");
+        const one = button("Fix", () => fixPictures([album], "all"));
+        one.disabled = runningTitle() !== null;
+        actions.append(one);
+        if (album.kinds.some((k) => Math.min(k.target.width, k.target.height) < 500)) actions.append(button("Find a better cover", () => deps.openAlbumPictures(album.gap)));
+        const cell = el("td");
+        cell.append(actions);
+        row.append(el("td", undefined, album.gap.album), el("td", undefined, album.gap.artist), el("td", "num", String(songsToWrite([album]))), what, cell);
+        body.append(row);
       }
-      URL.revokeObjectURL(prepared.previewUrl);
-      pictures.push({ kind, base64: prepared.base64 });
-      if (wantsFolderCopy("embedded", Math.min(size.width, size.height), reply.folder?.[kind] ?? null)) folder.push({ kind, base64: (await nativeCopy(original)).base64 });
+      table.append(thead, body);
+      root.append(table);
+      if (albums.length > oversizedShown) root.append(button(`Show more (${albums.length - oversizedShown} not shown)`, () => ((oversizedShown += 100), redrawArtwork())));
     }
-    if (pictures.length === 0) return "already as small as it can be at good quality, so it was left as it is";
-    deps.beforePictureEdit(paths);
-    const result = await invoke<{ results: FileResult[]; folder?: { ok: boolean; error?: string }[] }>("update_track_media", picturesRequest(paths, pictures, folder, batch));
-    const failed = result.results.find((r) => !r.ok) ?? result.folder?.find((f) => !f.ok);
-    if (failed) return failed.error ?? "it failed";
-    files = markSaved(files ?? [], paths, { fixedKinds: pictures.map((p) => p.kind) });
-    return null;
-  }
-
-  async function fixAll(gaps: AlbumGap[], root: HTMLElement): Promise<void> {
-    if (!window.confirm(`Store the pictures of ${gaps.length} album${gaps.length === 1 ? "" : "s"} again at most 1000 × 1000 pixels as JPEG?\n\nThe full-size pictures are kept in the album folders. You can undo this afterwards.`)) return;
-    const batch = `fix-${Date.now()}`;
-    fixing = { done: 0, total: gaps.length, stop: false };
-    const problems: string[] = [];
-    renderArtwork(root);
-    for (const gap of gaps) {
-      if (fixing.stop) break;
-      try {
-        const problem = await fixAlbum(gap, batch);
-        if (problem) problems.push(`${gap.album}: ${problem}`);
-      } catch (thrown) {
-        problems.push(`${gap.album}: ${describeError(toApiError(thrown))}`);
-      }
-      fixing.done += 1;
-      renderArtwork(root);
+    root.append(el("h3", undefined, `PNG picture files in album folders (${pngs.length})`));
+    if (pngs.length === 0) root.append(el("p", undefined, "None: the folder pictures are JPEG."));
+    else {
+      root.append(el("p", "field-hint", "Saved again as JPEG at the same size, for players that only read JPEG and to take less room."), modeButtons(`Save ${pngs.length} as JPEG:`, (mode) => convertFolderPictures(pngs, mode)));
+      const list = el("ul", "ft-problems art-problems");
+      for (const p of pngs) list.append(el("li", undefined, `${p.folder.split(/[\\/]/).slice(-2).join("\\")} (${ART_NAMES[p.kind].toLowerCase()})`));
+      root.append(list);
     }
-    const done = fixing.done;
-    fixing = null;
-    store(UNDO_KEY, batch);
-    fixNote = `${done - problems.length} of ${gaps.length} albums fixed.${problems.length ? ` Problems: ${problems.slice(0, 5).join("; ")}${problems.length > 5 ? "…" : ""}` : ""}`;
-    deps.picturesChanged();
-    renderArtwork(root);
   }
-
-  async function undoLastFix(root: HTMLElement): Promise<void> {
-    const batch = stored(UNDO_KEY);
-    if (!batch || !window.confirm("Put back the pictures as they were before the last fix?")) return;
-    try {
-      const reply = await invoke<{ songs: number; folder_files: number; problems: { path: string; message: string }[] }>("undo_picture_batch", { batch });
-      store(UNDO_KEY, null);
-      fixNote = `Undone: ${reply.songs} songs have their old pictures back${reply.problems.length ? `; ${reply.problems.length} problems, the first: ${reply.problems[0].message}` : ""}.`;
-    } catch (thrown) {
-      fixNote = describeError(toApiError(thrown));
-    }
-    deps.picturesChanged();
-    files = null;
-    void loadGaps(root, () => renderArtwork(root));
-  }
-
   // ---- Automatic covers (owner, 2026-11-05): in the background, however slowly it has to go, take the cover
-  // database's 100% matches: first for albums with no cover, then for low-resolution ones (only when the found cover
-  // is bigger). Each album is looked up once (remembered for 30 days); every change is journalled for an undo. ----
+  // database's 100% matches: first for albums with no cover anywhere, then for low-resolution ones (only when the found
+  // cover is bigger), then rear covers for albums with none. Albums that already have a picture in the library are
+  // completed from it above, never from the internet. Each album is looked up once (remembered for 30 days); every
+  // change is journalled for an undo. ----
+  type Wanted = "front" | "replace" | "back";
   const TRIED_KEY = "mediaverse.auto-covers-tried";
-  const AUTO_BATCH_KEY = "mediaverse.auto-covers-batch";
   const RETRY_AFTER_MS = 30 * 24 * 3600 * 1000;
-  type AutoState = { stoppedBusy?: boolean; running: boolean; stop: boolean; checked: number; total: number; added: number; busy: number; current: string; note: string };
-  const auto: AutoState = { running: false, stop: false, checked: 0, total: 0, added: 0, busy: 0, current: "", note: "" };
-  const triedMap = (): Record<string, number> => {
+  /** Unattended, how long to leave MusicBrainz alone when it is refusing, and how often before giving up. */
+  const REFUSED_WAIT_MS = 15 * 60 * 1000;
+  const REFUSED_WAITS = 8;
+  let autoNote = "";
+  let autoFailed: string[] = [];  const triedMap = (): Record<string, number> => {
     try {
       return JSON.parse(stored(TRIED_KEY) ?? "{}") as Record<string, number>;
     } catch {
@@ -263,14 +335,9 @@ export function initReviewPanels(
     store(TRIED_KEY, JSON.stringify(map));
   };
   const pause = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
-  let autoRoot: HTMLElement | null = null;
-  const autoRefresh = (): void => {
-    if (autoRoot && autoRoot.isConnected && !autoRoot.closest("[hidden]")) renderArtwork(autoRoot);
-  };
-
   type Art = { mime: string; data_base64: string; width: number; height: number };
   /** One album: a 100% match's covers, saved; returns what happened, for the note. */
-  async function autoAlbum(gap: AlbumGap, batch: string, replacing: boolean): Promise<"added" | "none" | "busy"> {
+  async function autoAlbum(gap: AlbumGap, wanted: Wanted, runId: string, batch: string): Promise<"added" | "none" | "busy"> {
     const paths = gap.albumMp3Paths ?? gap.mp3Paths;
     if (paths.length === 0 || /^unknown album$/i.test(gap.album)) return "none";
     const found = await runJob<{ candidates: { release_id: string; release_group_id?: string; image_url?: string; match: number }[]; sure_match: number; problems: { source: string; message: string }[] }>("find_album_art", {
@@ -291,126 +358,112 @@ export function initReviewPanels(
         continue; // no usable cover for this release: try the next sure match
       }
       // A low-resolution cover is replaced only by a bigger one.
-      if (replacing && gap.coverSize && Math.min(full.width, full.height) <= Math.min(...gap.coverSize)) return "none";
-      const front = blobFromBase64(full.data_base64, full.mime);
-      const pictures: { kind: PictureKindName; base64: string }[] = [{ kind: "front_cover", base64: (await prepareImage(front)).base64 }];
-      const folder: { kind: PictureKindName; base64: string }[] = [{ kind: "front_cover", base64: (await nativeCopy(front)).base64 }];
+      if (wanted === "replace" && gap.coverSize && Math.min(full.width, full.height) <= Math.min(...gap.coverSize)) return "none";
+      if (wanted === "back" && !full.back) continue;
+      const pictures: { kind: PictureKindName; base64: string }[] = [];
+      const folder: { kind: PictureKindName; base64: string }[] = [];
+      const add = async (kind: PictureKindName, art: Art): Promise<void> => {
+        const picture = blobFromBase64(art.data_base64, art.mime);
+        pictures.push({ kind, base64: (await prepareImage(picture)).base64 });
+        folder.push({ kind, base64: (await nativeCopy(picture)).base64 });
+      };
+      if (wanted !== "back") await add("front_cover", full);
       // The back cover too when the songs have none yet.
       if (full.back) {
         const have = await invoke<Record<string, unknown>>("album_pictures", { paths }).catch(() => null);
-        if (have && !have.back_cover) {
-          const back = blobFromBase64(full.back.data_base64, full.back.mime);
-          pictures.push({ kind: "back_cover", base64: (await prepareImage(back)).base64 });
-          folder.push({ kind: "back_cover", base64: (await nativeCopy(back)).base64 });
-        }
+        if (have && !have.back_cover) await add("back_cover", full.back);
       }
+      if (pictures.length === 0) return "none";
       deps.beforePictureEdit(paths);
+      history.add(runId, "Automatic covers", batch);
       const result = await invoke<{ results: FileResult[] }>("update_track_media", picturesRequest(paths, pictures, folder, batch));
-      if (result.results.some((r) => !r.ok)) return "none";
-      files = markSaved(files ?? [], paths, { frontCover: true, coverSize: [full.width, full.height], fixedKinds: pictures.map((p) => p.kind) });
-      return "added";
+      const failed = result.results.filter((r) => !r.ok);
+      if (failed.length) autoFailed.push(`${gap.album}: ${failed.length} of ${paths.length} songs could not be written (${failed[0].error ?? "it failed"})`);
+      return failed.length < paths.length ? "added" : "none";
     }
     return "none";
   }
 
-  async function runAuto(): Promise<void> {
-    if (auto.running || files === null) return;
-    const tracks = deps.libraryTracks();
+  const triedKey = (gap: AlbumGap, wanted: Wanted): string => (wanted === "back" ? `back|${gap.folder}|${gap.album}` : gap.folder);
+  /** The albums still to be looked up online. */
+  function autoQueue(plan: ArtworkPlan): [AlbumGap, Wanted][] {
     const tried = triedMap();
-    const fresh = (gap: AlbumGap): boolean => Date.now() - (tried[gap.folder] ?? 0) > RETRY_AFTER_MS;
-    const queue: [AlbumGap, boolean][] = [
-      ...albumsWithoutCover(files, tracks).filter(fresh).map((g) => [g, false] as [AlbumGap, boolean]),
-      ...albumsWithLowCover(files, tracks, lowThreshold).filter(fresh).map((g) => [g, true] as [AlbumGap, boolean]),
-    ];
-    const batch = `auto-${Date.now()}`;
+    return (
+      [
+        ...plan.none.front.map((g) => [g, "front"]),
+        ...albumsWithLowCover(files ?? [], deps.libraryTracks(), lowThreshold).map((g) => [g, "replace"]),
+        ...plan.none.back.map((g) => [g, "back"]),
+      ] as [AlbumGap, Wanted][]
+    ).filter(([g, wanted]) => Date.now() - (tried[triedKey(g, wanted)] ?? 0) > RETRY_AFTER_MS);
+  }
+
+  function runAuto(queue: [AlbumGap, Wanted][], mode: RunMode): void {
+    const id = `auto-${Date.now()}`;
+    let added = 0;
+    let busy = 0;
     let busyInARow = 0;
-    Object.assign(auto, { stoppedBusy: false });
-    Object.assign(auto, { running: true, stop: false, checked: 0, total: queue.length, added: 0, busy: 0, current: "", note: "" });
-    store(AUTO_BATCH_KEY, batch);
-    autoRefresh();
-    for (const [gap, replacing] of queue) {
-      if (auto.stop) break;
-      auto.current = `${gap.album} — ${gap.albumArtist ?? gap.artist}`;
-      autoRefresh();
-      let outcome: "added" | "none" | "busy" = "busy";
-      // The service busy or not answering: wait a minute and ask once more; still busy, the album is left for
-      // another time (not remembered as looked up).
-      for (let attempt = 0; attempt < 2 && outcome === "busy" && !auto.stop; attempt++) {
-        if (attempt > 0) {
-          auto.note = "The cover database is busy; waiting a minute before asking again.";
-          autoRefresh();
-          await pause(60_000);
-          auto.note = "";
+    let waits = 0;
+    autoNote = "";
+    autoFailed = [];
+    void startRun({
+      title: "Automatic covers",
+      unit: "albums",
+      mode,
+      items: queue.map(([gap, wanted], index) => ({ gap, wanted, batch: `${id}-${index}` })),
+      label: ({ gap }) => `${gap.album} — ${gap.albumArtist ?? gap.artist}`,
+      step: async ({ gap, wanted, batch }, tools) => {
+        let outcome: "added" | "none" | "busy" = "busy";
+        // The service busy or not answering: wait a minute and ask once more; still busy, the album is left for
+        // another time (not remembered as looked up).
+        for (let attempt = 0; attempt < 2 && outcome === "busy" && !tools.stopped(); attempt++) {
+          if (attempt > 0) await tools.wait(60_000, "The cover database is busy.");
+          if (tools.stopped()) break;
+          try {
+            outcome = await autoAlbum(gap, wanted, id, batch);
+          } catch {
+            outcome = "busy";
+          }
         }
-        try {
-          outcome = await autoAlbum(gap, batch, replacing);
-        } catch {
-          outcome = "busy";
+        if (outcome === "busy") {
+          if (tools.stopped()) return "failed";
+          busy += 1;
+          busyInARow += 1;
+          // Refused three albums running: MusicBrainz is limiting this program. Unattended, it is left alone for a
+          // while and asked again; otherwise the run ends and says so.
+          if (busyInARow >= 3) {
+            if (mode !== "all" || waits >= REFUSED_WAITS) return "halt";
+            waits += 1;
+            busyInARow = 0;
+            await tools.wait(REFUSED_WAIT_MS, "MusicBrainz is not answering this program just now.");
+          }
+          return "ok";
         }
-      }
-      if (outcome === "busy") {
-        auto.busy += 1;
-        busyInARow += 1;
-        // Still refused after three albums: MusicBrainz is limiting this program for now; stop rather than ask
-        // over and over, and say so.
-        if (busyInARow >= 3) {
-          auto.stop = true;
-          auto.stoppedBusy = true;
-        }
-      } else {
         busyInARow = 0;
-        markTried(gap.folder);
-      }
-      if (outcome === "added") {
-        auto.added += 1;
-        deps.picturesChanged();
-      }
-      auto.checked += 1;
-      autoRefresh();
-      await pause(1500); // politely slow
-    }
-    auto.running = false;
-    auto.current = "";
-    const later = auto.busy > 0 ? ` ${auto.busy} could not be checked because the cover database was busy; Start again later to try them.` : "";
-    auto.note = auto.stoppedBusy
-      ? `Paused: MusicBrainz is not answering this program just now (it limits programs that ask a lot). ${auto.added} covers added so far. Start again in an hour or so; albums already looked up are skipped.`
-      : (auto.stop ? `Stopped. ${auto.added} covers added so far.` : `Done: ${auto.checked} albums checked, ${auto.added} covers added.`) + later;
-    autoRefresh();
+        markTried(triedKey(gap, wanted));
+        if (outcome === "added") added += 1;
+        await pause(1500); // politely slow
+        return "ok";
+      },
+    }).then((report) => {
+      if (!report) return;
+      const refused = report.reason === "halted" ? " MusicBrainz is not answering this program just now (it limits programs that ask a lot); try again in an hour or so." : "";
+      autoNote = `${added} ${added === 1 ? "album" : "albums"} got covers. ${describeEnd(report, `${report.left} albums`)}${refused}${busy ? ` ${busy} could not be checked because the cover database was busy.` : ""}`;
+      if (added) deps.picturesChanged();
+      redrawArtwork();
+    });
   }
 
-  async function undoAuto(root: HTMLElement): Promise<void> {
-    const batch = stored(AUTO_BATCH_KEY);
-    if (!batch || auto.running || !window.confirm("Remove the covers the automatic search added, and put back what was there before?")) return;
-    try {
-      const reply = await invoke<{ songs: number; problems: { message: string }[] }>("undo_picture_batch", { batch });
-      store(AUTO_BATCH_KEY, null);
-      store(TRIED_KEY, null);
-      auto.note = `Undone: ${reply.songs} songs are as they were${reply.problems.length ? `; ${reply.problems.length} problems, the first: ${reply.problems[0].message}` : ""}.`;
-    } catch (thrown) {
-      auto.note = describeError(toApiError(thrown));
-    }
-    deps.picturesChanged();
-    files = null;
-    void loadGaps(root, () => renderArtwork(root));
-  }
-
-  function autoBox(root: HTMLElement): HTMLElement {
-    autoRoot = root;
+  function autoBox(plan: ArtworkPlan): HTMLElement {
     const box = el("div", "auto-covers");
-    const line = el("div", "row-actions");
-    line.append(el("strong", undefined, "Automatic covers"));
-    if (auto.running) {
-      line.append(el("span", undefined, `${auto.checked} of ${auto.total} albums checked · ${auto.added} covers added${auto.current ? ` · now: ${auto.current}` : ""}`));
-      line.append(button("Stop", () => (auto.stop = true)));
-    } else {
-      line.append(button("Start", () => void runAuto(), ""));
-      if (stored(AUTO_BATCH_KEY)) line.append(button("Undo the automatic covers", () => void undoAuto(root)));
-    }
-    box.append(line, el("p", "field-hint", "Looks up missing covers first, then low-resolution ones, and takes only the cover database's 100% matches (a low-resolution cover only for a bigger one). It runs in the background, slowly, while the program is open; each album is looked up once."));
-    if (auto.note) box.append(el("p", "field-hint", auto.note));
+    const queue = autoQueue(plan);
+    box.append(el("h3", undefined, "Automatic covers (online)"), el("p", "field-hint", "For albums with no picture anywhere in your library: looks up missing front covers first, then bigger ones for low-resolution covers, then missing rear covers. It takes only the cover database's 100% matches and asks slowly; each album is looked up once."));
+    if (rechecking) box.append(el("p", "field-hint", "Checking the changed songs…"));
+    else if (queue.length) box.append(modeButtons(`${queue.length.toLocaleString("en-US")} albums to look up:`, (mode) => runAuto(queue, mode)));
+    else box.append(el("p", "field-hint", "Nothing left to look up."));
+    if (autoNote) box.append(el("p", "field-hint", autoNote));
+    for (const failure of autoFailed.slice(-20)) box.append(el("p", "result-warning", failure));
     return box;
   }
-
   // ---- Automatic lyrics (docs/lyrics-plan.md): in the background, LRCLIB's sure answers for songs without lyrics:
   // its exact match, or the artist's own version of the same length. Other versions and other artists are left for
   // the person (Find lyrics). Each song is asked about once (30 days); everything is journalled for an undo. ----
@@ -640,15 +693,15 @@ export function initReviewPanels(
     return box;
   }
   function renderArtwork(root: HTMLElement): void {
-    if (files === null) return;
+    if (files === null || nothingChecked(root, () => renderArtwork(root))) return;
     const tracks = deps.libraryTracks();
-    const missing = albumsWithoutCover(files, tracks);
+    const plan = artworkPlan();
     const low = albumsWithLowCover(files, tracks, lowThreshold);
-    const oversized = (): AlbumGap[] => albumsWithLargeEmbedded(files ?? [], tracks).filter((g) => oversizedGroup(g) !== "over200");
-    const large = oversized();
+    const resize = planResize(files, tracks, folderArt);
+    const pngs = pngFolderPictures(files, folderArt);
     root.replaceChildren();
     const chips = el("div", "view-links");
-    for (const [view, label] of [["missing", `Missing (${missing.length})`], ["low", `Low resolution (${low.length})`], ["large", `Oversized images (${large.length})`]] as const) {
+    for (const [view, label] of [["missing", `In every song (${albumsLackingFront(plan)} to do)`], ["low", `Low resolution (${low.length})`], ["large", `Oversized images (${resize.length + pngs.length})`]] as const) {
       const chip = button(label, () => {
         artView = view;
         renderArtwork(root);
@@ -657,15 +710,24 @@ export function initReviewPanels(
       chips.append(chip);
     }
     chips.append(rescanButton(root, () => renderArtwork(root)));
-    root.append(chips);
-    if (artView !== "large") root.append(autoBox(root));
+    root.append(chips, runView(), undoBar((run) => {
+      // Covers taken out again may be looked up again.
+      if (run.label === "Automatic covers") store(TRIED_KEY, null);
+      deps.picturesChanged();
+    }));
 
     if (artView === "missing") {
-      root.append(el("p", undefined, missing.length === 0 ? "Every album has a cover." : "Albums with no cover picture, neither inside the songs nor as a cover file in the album folder."));
+      root.insertBefore(el("p", undefined, albumsLackingFront(plan) === 0 && plan.choices.length === 0 ? "Every MP3 has a front cover inside it." : "Every song should carry its album's front cover inside it, with the rear cover and artist photo where there is one. A picture file in the folder does not count."), chips.nextSibling);
+      root.append(fill.render(plan, rechecking), autoBox(plan));
+      const missing = plan.none.front;
+      root.append(el("h3", undefined, `No front cover anywhere (${missing.length})`));
       if (missing.length) root.append(gapTable(missing, [["Year", true, (g) => (g.year ? String(g.year) : "—")], ["Tracks", true, (g) => String(g.total ?? g.tracks.length)]], openButton("Add artwork")));
+      root.append(el("p", "field-hint", `No rear cover anywhere: ${plan.none.back.length} albums. No artist photo anywhere: ${plan.none.artist.length} albums (look for free photos below).`));
+      if (deps.artistPhotos) root.append(deps.artistPhotos.element);
       return;
     }
     if (artView === "low") {
+      root.append(autoBox(plan));
       const line = el("p");
       line.append(`Albums whose best cover is smaller than `);
       const select = el("select");
@@ -687,55 +749,7 @@ export function initReviewPanels(
       else root.append(gapTable(low, [["Year", true, (g) => (g.year ? String(g.year) : "—")], ["Cover now", true, (g) => (g.coverSize ? `${g.coverSize[0]} × ${g.coverSize[1]}` : "—")]], openButton("Replace artwork")));
       return;
     }
-    // Oversized images (owner, 2026-11-05): pictures that need resizing, PNG pictures (convert, or find a better
-    // cover), and JPEGs of 500 KB or more. JPEGs of 200 to 500 KB are not listed (owner: "get rid of" that group).
-    root.append(el("p", undefined, "Pictures inside the songs are best as JPEG, at most 1000 × 1000 pixels and ideally under 200 KB. Fixing stores them again that way, never smaller than they are; the full-size picture is kept in the album folder."));
-    const tools = el("div", "row-actions");
-    if (fixing) {
-      const current = fixing;
-      tools.append(el("span", undefined, `Fixing: ${current.done} of ${current.total} albums…`), button("Stop", () => (current.stop = true)));
-    } else if (stored(UNDO_KEY)) {
-      tools.append(button("Undo the last fix", () => void undoLastFix(root)));
-    }
-    root.append(tools);
-    if (fixNote) root.append(el("p", "field-hint", fixNote));
-    const shown = oversized();
-    if (shown.length === 0) {
-      root.append(el("p", undefined, "None: every picture inside the songs is within the limits."));
-      return;
-    }
-    const fixOne = (gap: AlbumGap): void => {
-      if (fixing) return;
-      const batch = `fix-${Date.now()}`;
-      fixAlbum(gap, batch)
-        .then((problem) => {
-          fixNote = problem ? `${gap.album}: ${problem}` : `${gap.album}: fixed.`;
-          if (!problem) store(UNDO_KEY, batch);
-          deps.picturesChanged();
-          renderArtwork(root);
-        })
-        .catch((thrown) => {
-          fixNote = `${gap.album}: ${describeError(toApiError(thrown))}`;
-          renderArtwork(root);
-        });
-    };
-    for (const group of OVERSIZED_GROUPS) {
-      const gaps = shown.filter((g) => oversizedGroup(g) === group);
-      if (gaps.length === 0) continue;
-      const head = el("div", "gap-group-head");
-      head.append(el("h3", undefined, `${GROUP_TITLES[group]} (${gaps.length})`));
-      if (!fixing) head.append(button(group === "png" ? `Convert all ${gaps.length} to JPEG` : `Fix these ${gaps.length}`, () => void fixAll(gaps, root), ""));
-      root.append(head, el("p", "field-hint", GROUP_HINTS[group]));
-      root.append(
-        gapTable(gaps, [["Pictures in the songs", false, (g) => (g.issues ?? []).map(describeIssue).join("; ")]], (gap) => {
-          const cell = el("span", "row-actions");
-          cell.append(button(group === "png" ? "Convert to JPEG" : "Fix", () => fixOne(gap)));
-          // A PNG, or a small cover, may be better replaced than converted (owner, 2026-11-05).
-          if (group === "png" || (gap.coverSize && Math.min(...gap.coverSize) < 500)) cell.append(button("Find a better cover", () => deps.openAlbumPictures(gap)));
-          return cell;
-        }),
-      );
-    }
+    renderOversized(root, resize, pngs);
   }
   function renderGaps(root: HTMLElement, kind: "artwork" | "lyrics"): void {
     if (files === null) return;
@@ -850,6 +864,7 @@ export function initReviewPanels(
   }
 
   function renderLyrics(root: HTMLElement): void {
+    if (files !== null && nothingChecked(root, () => renderLyrics(root))) return;
     if (instrumentalItems === null) {
       void loadInstrumental().then(() => {
         if (root.isConnected && !root.closest("[hidden]") && !lyricsAuto.running) renderLyrics(root);
@@ -1186,8 +1201,16 @@ export function initReviewPanels(
     root.replaceChildren(...parts);
   }
 
+  // When any long job ends, wherever it was started, the songs are checked again before anything else is offered.
+  onRunChange(() => {
+    if (!runningTitle() && files !== null) void recheckArtwork();
+    else redrawArtwork();
+    deps.artistPhotos?.redraw();
+  });
+
   return {
     showArtwork: () => {
+      deps.artistPhotos?.show();
       if (files === null) void loadGaps(roots.artwork, () => renderGaps(roots.artwork, "artwork"));
       else renderGaps(roots.artwork, "artwork");
     },
@@ -1208,6 +1231,7 @@ export function initReviewPanels(
     mediaSaved: (saved: { paths: string[] } & MediaChange) => {
       if (files === null) return;
       files = markSaved(files, saved.paths, saved);
+      if (saved.frontCover !== undefined || saved.fixedKinds?.length) void recheckArtwork();
       for (const [root, kind] of [[roots.artwork, "artwork"], [roots.lyrics, "lyrics"]] as const) {
         if (root.isConnected && !root.closest("[hidden]") && root.childElementCount > 0) renderGaps(root, kind);
       }

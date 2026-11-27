@@ -1,5 +1,5 @@
 const { attach: attachEditMenu } = require("./edit-menu");
-const { app, BrowserWindow, clipboard, dialog, globalShortcut, ipcMain, Menu, nativeImage, protocol, screen, session, shell } = require("electron");
+const { app, BrowserWindow, clipboard, dialog, globalShortcut, ipcMain, Menu, nativeImage, powerSaveBlocker, protocol, screen, session, shell } = require("electron");
 const { setupMediaControls } = require("./media-setup");
 const { isAllowedExternal } = require("./external-links");
 const { seedPage } = require("./musicbrainz-seed");
@@ -68,6 +68,7 @@ const allowedCommands = new Set([
   "canonical_artist_names",
   "write_wiki_photos",
   "list_wiki_photos",
+  "wiki_photo",
   "align_album",
   "undo_album_align",
   "list_mb_ids",
@@ -76,6 +77,7 @@ const allowedCommands = new Set([
   "dismiss_mb_ids",
   "undo_artist_rename",
   "album_pictures",
+  "art_source",
   "track_lyrics",
   "scan_defects",
   "list_defect_results",
@@ -198,7 +200,7 @@ const allowedEvents = new Set([
 ]);
 
 let sidecar = null;
-// Library sharing with the TV app (D38): off until switched on in Settings > TV.
+// Library sharing with the TV app (D38): off until switched on in Settings > TV & Phone Pairing.
 let libraryShare = null;
 
 // The page plays music through this scheme (see media-access.js). It must be declared before ready.
@@ -379,6 +381,17 @@ function registerBridge() {
   });
   // Settings > About (D88). The licences folder sits beside the program in an installed copy
   // (tools/make-licence-pack.ps1 makes it); from source it is the last one made in dist-app.
+  // A long job the person left running (artwork, say) is not cut off by the computer going to sleep; the screen may still turn off.
+  let awake = null;
+  ipcMain.handle("mediaverse:keep-awake", (event, on) => {
+    if (!fromApp(event)) return false;
+    if (on === true && awake === null) awake = powerSaveBlocker.start("prevent-app-suspension");
+    else if (on !== true && awake !== null) {
+      powerSaveBlocker.stop(awake);
+      awake = null;
+    }
+    return awake !== null;
+  });
   ipcMain.handle("mediaverse:about", (event) => {
     if (!fromApp(event)) return null;
     let commit = null;
@@ -440,6 +453,12 @@ function registerBridge() {
   ipcMain.handle("mediaverse:share-forget-device", guarded((id) => libraryShare.forgetDevice(String(id))));
   ipcMain.handle("mediaverse:share-cancel-pairing", guarded(() => libraryShare.cancelPairing()));
   ipcMain.handle("mediaverse:share-arm-pairing", guarded(() => libraryShare.armPairing()));
+  ipcMain.handle("mediaverse:share-set-uploads", guarded((allowed) => libraryShare.setUploads(allowed === true)));
+  ipcMain.handle("mediaverse:share-open-incoming", guarded(async () => {
+    const folder = incomingFolder();
+    await fs.promises.mkdir(folder, { recursive: true });
+    return (await shell.openPath(folder)) === "";
+  }));
   ipcMain.handle("mediaverse:remote-devices", guarded(() => libraryShare.remoteDevices()));
   // Playlists as files (D78): the person chooses where; the type follows the chosen extension.
   ipcMain.handle(
@@ -585,6 +604,11 @@ function registerBridge() {
   });
 }
 
+/** Where music sent from phones waits to be looked over (D214): outside the library, so nothing is mixed in unasked. */
+function incomingFolder() {
+  return path.join(app.getPath("home"), "MediaVerse Incoming");
+}
+
 function startLibraryShare() {
   libraryShare = createLibraryShare({
     settingsFile: path.join(app.getPath("userData"), "library-share.json"),
@@ -596,6 +620,9 @@ function startLibraryShare() {
       favorites: async () => (await sidecar.invoke("list_favorites", {}))?.favorites ?? [],
       flags: async () => (await sidecar.invoke("list_flags", {}))?.flags ?? [],
       playlists: async () => (await sidecar.invoke("list_playlists", {}))?.playlists ?? [],
+      savePlaylist: (playlist) => sidecar.invoke("save_playlist", playlist),
+      deletePlaylist: (id) => sidecar.invoke("delete_playlist", { id }),
+      incoming: async () => incomingFolder(),
       setFavorite: (file, args) => sidecar.invoke("set_favorite", { path: file, ...args }),
       setFlag: (file, args) => sidecar.invoke("set_flag", { path: file, ...args }),
       // Electron's own image code, so covers for the TV can be sent small (no extra component).

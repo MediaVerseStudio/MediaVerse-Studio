@@ -45,6 +45,8 @@ export type KeptFile = {
   adopted?: boolean;
   /** An adopted song that differs from the server's copy (another tag or bitrate): left as it is until the person chooses the server's version. */
   hold?: boolean;
+  /** The person asked for the server's version of this song: fetched over the phone's copy at the next round. */
+  replace?: boolean;
 };
 export type Manifest = { files: Record<string, KeptFile> };
 
@@ -70,6 +72,7 @@ export function cleanManifest(raw: unknown): Manifest {
         album: String(value.album ?? ""),
         ...(value.adopted === true ? { adopted: true } : {}),
         ...(value.hold === true ? { hold: true } : {}),
+        ...(value.replace === true ? { replace: true } : {}),
       };
     }
   }
@@ -182,7 +185,7 @@ export function planSync(wanted: Wanted, manifest: Manifest, present: Set<string
       bytes += song.size;
     } else if (kept.hold) {
       differs += 1; // the person's own version stays until they choose the server's
-    } else if (changedOnServer(kept, song)) {
+    } else if (kept.replace || changedOnServer(kept, song)) {
       update.push({ song, via, old: kept, why: "edited", inPlace: kept.adopted === true });
       bytes += song.size;
     } else same += 1;
@@ -208,6 +211,8 @@ export function useServerVersions(manifest: Manifest): number {
   for (const file of Object.values(manifest.files)) {
     if (file.hold) {
       delete file.hold;
+      // Asked for outright: a copy that differs may be the same size, which a size comparison would call unchanged.
+      file.replace = true;
       n += 1;
     }
   }
@@ -224,7 +229,13 @@ export type SyncIo = {
   /** Fetches a song into `path` (replacing the phone's copy `replace`, when there is one; `inPlace`: writing over that copy, keeping its id) and answers the copy's id. */
   download: (song: SyncSong, path: string, replace: string | null, inPlace: boolean) => Promise<{ mediaId: string; bytes: number }>;
   /** Songs on the server that the phone may already have: answers the ones recognised (see adopt.ts), each marked exact or differing. Optional. */
-  adopt?: (songs: SyncSong[]) => Promise<Array<{ song: SyncSong; local: { id: string; folder: string; file: string; size: number }; level: "exact" | "differs" }>>;
+  adopt?: (songs: SyncSong[]) => Promise<Array<{ song: SyncSong; local: { id: string; folder: string; file: string; size: number; own?: boolean }; level: "exact" | "differs" }>>;
+  /** The person's choice: songs on the phone that differ from the server's are replaced by the server's versions. */
+  overwrite?: boolean;
+  /** True once the time given to this round is up (it ends between songs). */
+  timeUp?: () => boolean;
+  /** How far the fetching has got. */
+  count?: (done: number, total: number, bytesDone: number, bytesTotal: number) => void;
   /** Asks Android's permission to update these songs in place; answers the ids that may be. Optional (without it nothing is updated in place). */
   grantWrite?: (mediaIds: string[]) => Promise<Set<string>>;
   /** Takes songs off the phone; answers the ids that were taken off. */
@@ -234,14 +245,16 @@ export type SyncIo = {
   now: () => number;
 };
 
-export type SyncOutcome = { downloaded: number; updated: number; removed: number; adopted: number; differs: number; forgotten: number; heldBack: number; failed: string[]; bytes: number; kept: number; cancelled: boolean; /** The phone's own ids of songs that were fetched again: old id to new id (a favorite, a flag or a playlist entry follows). */ moved: Record<string, string> };
+export type SyncOutcome = { /** Songs still to fetch because the time was up. */ left: number; downloaded: number; updated: number; removed: number; adopted: number; differs: number; forgotten: number; heldBack: number; failed: string[]; bytes: number; kept: number; cancelled: boolean; /** The phone's own ids of songs that were fetched again: old id to new id (a favorite, a flag or a playlist entry follows). */ moved: Record<string, string> };
 
+/** Songs named in one of Android's permission prompts. */
+const PER_PROMPT = 500;
 const CONSECUTIVE_FAILURES = 3;
 
 /** One round: reads what the server has for each choice, recognises songs already on the phone, works out the plan, then fetches and removes. The record is saved after every song, so an interrupted round loses nothing. */
 export async function runHomeSync(choices: Choice[], io: SyncIo): Promise<SyncOutcome> {
   const manifest = io.manifest;
-  const empty = (cancelled: boolean): SyncOutcome => ({ downloaded: 0, updated: 0, removed: 0, adopted: 0, differs: 0, forgotten: 0, heldBack: 0, failed: [], bytes: 0, kept: Object.keys(manifest.files).length, cancelled, moved: {} });
+  const empty = (cancelled: boolean): SyncOutcome => ({ left: 0, downloaded: 0, updated: 0, removed: 0, adopted: 0, differs: 0, forgotten: 0, heldBack: 0, failed: [], bytes: 0, kept: Object.keys(manifest.files).length, cancelled, moved: {} });
   const results: Array<{ choice: Choice; songs: SyncSong[] }> = [];
   for (const [n, choice] of choices.entries()) {
     io.progress(`Reading the server (${n + 1} of ${choices.length}): ${choiceLabel(choice)}`);
@@ -269,14 +282,15 @@ export async function runHomeSync(choices: Choice[], io: SyncIo): Promise<SyncOu
           title: found.song.title,
           artist: found.song.artist,
           album: found.song.album,
-          ...(isOwn(found.local.folder) ? {} : { adopted: true }),
-          ...(found.level === "differs" ? { hold: true } : {}),
+          ...(found.local.own ? {} : { adopted: true }),
+          ...(found.level === "differs" ? (io.overwrite ? { replace: true } : { hold: true }) : {}),
         };
         adopted += 1;
       }
       if (adopted) io.saveManifest(manifest);
     }
   }
+  if (io.overwrite) useServerVersions(manifest);
   const plan = planSync(wanted, manifest, io.present(), choices);
   const paths = uniquePaths(
     [...plan.download.map((d) => d.song), ...plan.update.map((u) => u.song)],
@@ -287,13 +301,23 @@ export async function runHomeSync(choices: Choice[], io: SyncIo): Promise<SyncOu
     ...plan.download.map((d) => ({ song: d.song, via: d.via, old: null as KeptFile | null, inPlace: false })),
     ...plan.update.map((u) => ({ song: u.song, via: u.via, old: u.old as KeptFile | null, inPlace: u.inPlace })),
   ];
-  // Songs updated where they are need Android's permission, asked once for all of them.
-  let writable = new Set<string>();
+  // Songs updated where they are need Android's permission, asked for a group at a time as they are reached; once the person says no, it is not asked again.
+  const writable = new Set<string>();
   const wantWrite = jobs.filter((j) => j.inPlace && j.old?.mediaId).map((j) => j.old!.mediaId!);
-  if (wantWrite.length && io.grantWrite) {
-    io.progress(`Asking Android for permission to update ${wantWrite.length} song${wantWrite.length === 1 ? "" : "s"} on the phone…`);
-    writable = await io.grantWrite(wantWrite);
-  }
+  let asked = 0;
+  const allowed = async (mediaId: string): Promise<boolean> => {
+    while (io.grantWrite && !writable.has(mediaId) && asked < wantWrite.length && wantWrite.indexOf(mediaId) >= asked) {
+      const part = wantWrite.slice(asked, asked + PER_PROMPT);
+      asked += part.length;
+      io.progress(`Asking Android for permission to update ${part.length} song${part.length === 1 ? "" : "s"} on the phone…`);
+      const granted = await io.grantWrite(part);
+      for (const id of granted) writable.add(id);
+      if (granted.size === 0) asked = wantWrite.length;
+    }
+    return writable.has(mediaId);
+  };
+  const totalBytes = jobs.reduce((sum, j) => sum + j.song.size, 0);
+  let doneBytes = 0;
   let failures = 0;
   let refused = 0;
   for (const [n, job] of jobs.entries()) {
@@ -301,7 +325,13 @@ export async function runHomeSync(choices: Choice[], io: SyncIo): Promise<SyncOu
       outcome.cancelled = true;
       break;
     }
-    if (job.inPlace && !(job.old?.mediaId && writable.has(job.old.mediaId))) {
+    if (n > 0 && io.timeUp?.()) {
+      outcome.left = jobs.length - n;
+      break;
+    }
+    io.count?.(n, jobs.length, doneBytes, totalBytes);
+    doneBytes += job.song.size;
+    if (job.inPlace && !(job.old?.mediaId && (await allowed(job.old.mediaId)))) {
       refused += 1;
       continue;
     }
@@ -310,6 +340,7 @@ export async function runHomeSync(choices: Choice[], io: SyncIo): Promise<SyncOu
       const path = job.old && !job.old.adopted ? job.old.path : (paths.get(job.song.id) ?? relativePath(job.song));
       const done = await io.download(job.song, path, job.old?.mediaId ?? null, job.inPlace);
       manifest.files[job.song.id] = { ...(job.inPlace && job.old ? job.old : {}), id: job.song.id, mediaId: done.mediaId, path: job.inPlace && job.old ? job.old.path : path, size: done.bytes || job.song.size, etag: job.song.etag, at: io.now(), via: job.via, title: job.song.title, artist: job.song.artist, album: job.song.album };
+      delete manifest.files[job.song.id]!.replace;
       if (!job.inPlace) {
         delete manifest.files[job.song.id]!.adopted; // a copy the program fetched itself is its own
         delete manifest.files[job.song.id]!.hold;
@@ -356,7 +387,7 @@ export async function runHomeSync(choices: Choice[], io: SyncIo): Promise<SyncOu
   return outcome;
 }
 
-const isOwn = (folder: string): boolean => folder.replace(/\\/g, "/").startsWith("Music/MediaVerse Home/");
+
 /** "3 songs, 12.4 MB" style size text. */
 export function sizeText(bytes: number): string {
   if (bytes < 1_000_000) return `${Math.max(1, Math.round(bytes / 1000))} KB`;
@@ -375,6 +406,6 @@ export function describeOutcome(outcome: SyncOutcome): string {
   if (outcome.differs) parts.push(`${outcome.differs} on the phone differ from the server's copy and were left as they are`);
   if (outcome.heldBack) parts.push(`${outcome.heldBack} songs the server no longer lists were kept on the phone (that many at once looks like a fault; check the server)`);
   if (outcome.failed.length) parts.push(`${outcome.failed.length} problem${outcome.failed.length === 1 ? "" : "s"}: ${outcome.failed[0]}`);
-  const head = outcome.cancelled ? "Stopped. " : "";
+  const head = outcome.cancelled ? "Stopped. " : outcome.left ? `Five minutes' worth done, ${outcome.left} song${outcome.left === 1 ? "" : "s"} left (sync again to carry on). ` : "";
   return `${head}${parts.length ? parts.join("; ") : "Everything chosen is already on the phone."}.`.replace(/\.\.$/, ".");
 }

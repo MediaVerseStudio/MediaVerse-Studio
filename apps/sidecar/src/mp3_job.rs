@@ -76,6 +76,9 @@ fn load_picture(kind: &str, path: &str) -> Result<Picture, String> {
     let data = std::fs::read(path).map_err(|e| format!("could not read the image {path}: {e}"))?;
     cover_art::validate_image(&data)
         .map_err(|e| format!("the image {path} cannot be used: {e}"))?;
+    if let Some(problem) = cover_art::song_picture_problem(&data) {
+        return Err(format!("the image {path} cannot be used: {problem}"));
+    }
     if data.len() > MAX_PICTURE_BYTES {
         return Err(format!(
             "the image {path} is {} KB; the limit for embedding is {} KB",

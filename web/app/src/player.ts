@@ -110,14 +110,14 @@ export function initPlayer(root: HTMLElement): Player {
   const shuffleButton = root.querySelector<HTMLButtonElement>("#player-shuffle")!;
   const repeatButton = root.querySelector<HTMLButtonElement>("#player-repeat")!;
   const cover = root.querySelector<HTMLImageElement>("#player-cover")!;
-  setIconButton(previousButton, "previous", "Previous song");
+  setIconButton(previousButton, "previous", "Previous song", true);
   const playButton = root.querySelector<HTMLButtonElement>("#player-play")!;
   const elapsed = root.querySelector<HTMLElement>("#player-elapsed")!;
   const lengthLabel = root.querySelector<HTMLElement>("#player-duration")!;
   const seekBar = root.querySelector<HTMLInputElement>("#player-seek")!;
   const muteButton = root.querySelector<HTMLButtonElement>("#player-mute")!;
   const volumeBar = root.querySelector<HTMLInputElement>("#player-volume")!;
-  setIconButton(nextButton, "next", "Next song");
+  setIconButton(nextButton, "next", "Next song", true);
   const queue = new PlayQueue();
   // Songs are read whole into memory before they play, and the next ones ahead of time (owner, 2026-11-23: no waiting when moving about in a song or going to the next).
   const cache = createAudioCache({

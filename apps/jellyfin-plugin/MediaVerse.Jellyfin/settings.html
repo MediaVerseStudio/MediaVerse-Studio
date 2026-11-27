@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>MediaVerse Sync</title>
+</head>
+<body>
+    <div id="mediaVerseSyncPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-input,emby-button,emby-checkbox">
+        <div data-role="content">
+            <div class="content-primary">
+                <h2>MediaVerse Sync</h2>
+                <form id="mediaVerseSyncForm">
+                    <label class="checkboxContainer">
+                        <input is="emby-checkbox" type="checkbox" id="mvAllowUploads" />
+                        <span>Let signed-in MediaVerse apps send new music to this server</span>
+                    </label>
+                    <div class="inputContainer">
+                        <input is="emby-input" type="text" id="mvIncomingFolder" label="Folder new music waits in" />
+                        <div class="fieldDescription">Empty uses a folder in the plugin's own data. Choose one outside your music libraries to look new music over before adding it. Nothing there is written over.</div>
+                    </div>
+                    <button is="emby-button" type="submit" class="raised button-submit block"><span>Save</span></button>
+                </form>
+            </div>
+        </div>
+        <script type="text/javascript">
+            (function () {
+                var id = "7c2b6f0e-3d1a-4f7e-9a57-2f4a1c9d8e31";
+                var page = document.querySelector("#mediaVerseSyncPage");
+                page.addEventListener("pageshow", function () {
+                    Dashboard.showLoadingMsg();
+                    ApiClient.getPluginConfiguration(id).then(function (config) {
+                        page.querySelector("#mvAllowUploads").checked = config.AllowUploads;
+                        page.querySelector("#mvIncomingFolder").value = config.IncomingFolder || "";
+                        Dashboard.hideLoadingMsg();
+                    });
+                });
+                page.querySelector("#mediaVerseSyncForm").addEventListener("submit", function (event) {
+                    event.preventDefault();
+                    Dashboard.showLoadingMsg();
+                    ApiClient.getPluginConfiguration(id).then(function (config) {
+                        config.AllowUploads = page.querySelector("#mvAllowUploads").checked;
+                        config.IncomingFolder = page.querySelector("#mvIncomingFolder").value.trim();
+                        ApiClient.updatePluginConfiguration(id, config).then(Dashboard.processPluginConfigurationUpdateResult);
+                    });
+                    return false;
+                });
+            })();
+        </script>
+    </div>
+</body>
+</html>

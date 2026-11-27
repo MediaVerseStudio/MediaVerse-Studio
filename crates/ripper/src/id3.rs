@@ -12,7 +12,9 @@
 use std::fmt;
 
 pub const MAX_PICTURE_BYTES: usize = 500 * 1024;
-const MAX_TAG_BYTES: usize = 4 * 1024 * 1024;
+/// Largest tag read or written. Songs tagged by other programs carry pictures of many megabytes (12 MB seen in the
+/// owner's library, 2026-11-26); a 4 MB limit meant their artwork could never be replaced.
+pub const MAX_TAG_BYTES: usize = 32 * 1024 * 1024;
 const PADDING_BYTES: usize = 2048;
 
 #[derive(Debug, Eq, PartialEq)]
@@ -272,6 +274,10 @@ fn picture_frame(picture: &Picture) -> Result<Vec<u8>, Id3Error> {
             picture.data.len()
         ));
     }
+    any_size_picture_frame(picture)
+}
+
+fn any_size_picture_frame(picture: &Picture) -> Result<Vec<u8>, Id3Error> {
     let mime = mime_of(&picture.data)?;
     let mut body = vec![0u8]; // Latin-1 description
     body.extend_from_slice(mime.as_bytes());
@@ -353,6 +359,8 @@ pub enum PictureChange {
     Set(Picture),
     /// Remove any picture of this kind.
     Remove(PictureKind),
+    /// Put back a picture the song had before (undo), however large it was: the size limit is for new pictures.
+    Restore(Picture),
 }
 
 /// A change to the lyrics.
@@ -394,7 +402,9 @@ pub fn edit_tag(file: &[u8], edit: &TagEdit) -> Result<Vec<u8>, Id3Error> {
         .pictures
         .iter()
         .map(|change| match change {
-            PictureChange::Set(picture) => picture.kind.id3_type(),
+            PictureChange::Set(picture) | PictureChange::Restore(picture) => {
+                picture.kind.id3_type()
+            }
             PictureChange::Remove(kind) => kind.id3_type(),
         })
         .collect();
@@ -415,8 +425,10 @@ pub fn edit_tag(file: &[u8], edit: &TagEdit) -> Result<Vec<u8>, Id3Error> {
         }
     }
     for change in &edit.pictures {
-        if let PictureChange::Set(picture) = change {
-            frames.extend(picture_frame(picture)?);
+        match change {
+            PictureChange::Set(picture) => frames.extend(picture_frame(picture)?),
+            PictureChange::Restore(picture) => frames.extend(any_size_picture_frame(picture)?),
+            PictureChange::Remove(_) => {}
         }
     }
     match &edit.lyrics {
@@ -480,17 +492,130 @@ fn has_frame_flags(bytes: &[u8]) -> Result<bool, Id3Error> {
     Ok(false)
 }
 
+/// The ID3v2.3 name for a three-letter ID3v2.2 name followed by a zero byte. Old iTunes versions wrote such
+/// names into 2.3 tags (frame sizes and bodies otherwise correct). Names whose contents differ in a way that
+/// cannot be carried over (CRM, LNK) are not listed, so such a tag is still refused.
+fn old_frame_name(id: &[u8]) -> Option<&'static str> {
+    let [a, b, c, 0] = *id else {
+        return None;
+    };
+    Some(match &[a, b, c] {
+        b"BUF" => "RBUF",
+        b"CNT" => "PCNT",
+        b"COM" => "COMM",
+        b"CRA" => "AENC",
+        b"ETC" => "ETCO",
+        b"EQU" => "EQUA",
+        b"GEO" => "GEOB",
+        b"IPL" => "IPLS",
+        b"MCI" => "MCDI",
+        b"MLL" => "MLLT",
+        b"PIC" => "APIC",
+        b"POP" => "POPM",
+        b"REV" => "RVRB",
+        b"RVA" => "RVAD",
+        b"SLT" => "SYLT",
+        b"STC" => "SYTC",
+        b"TAL" => "TALB",
+        b"TBP" => "TBPM",
+        b"TCM" => "TCOM",
+        b"TCO" => "TCON",
+        b"TCR" => "TCOP",
+        b"TDA" => "TDAT",
+        b"TDY" => "TDLY",
+        b"TEN" => "TENC",
+        b"TFT" => "TFLT",
+        b"TIM" => "TIME",
+        b"TKE" => "TKEY",
+        b"TLA" => "TLAN",
+        b"TLE" => "TLEN",
+        b"TMT" => "TMED",
+        b"TOA" => "TOPE",
+        b"TOF" => "TOFN",
+        b"TOL" => "TOLY",
+        b"TOR" => "TORY",
+        b"TOT" => "TOAL",
+        b"TP1" => "TPE1",
+        b"TP2" => "TPE2",
+        b"TP3" => "TPE3",
+        b"TP4" => "TPE4",
+        b"TPA" => "TPOS",
+        b"TPB" => "TPUB",
+        b"TRC" => "TSRC",
+        b"TRD" => "TRDA",
+        b"TRK" => "TRCK",
+        b"TSI" => "TSIZ",
+        b"TSS" => "TSSE",
+        b"TT1" => "TIT1",
+        b"TT2" => "TIT2",
+        b"TT3" => "TIT3",
+        b"TXT" => "TEXT",
+        b"TXX" => "TXXX",
+        b"TYE" => "TYER",
+        b"UFI" => "UFID",
+        b"ULT" => "USLT",
+        b"WAF" => "WOAF",
+        b"WAR" => "WOAR",
+        b"WAS" => "WOAS",
+        b"WCM" => "WCOM",
+        b"WCP" => "WCOP",
+        b"WPB" => "WPUB",
+        b"WXX" => "WXXX",
+        // iTunes' own additions (compilation and sort names).
+        b"TCP" => "TCMP",
+        b"TS2" => "TSO2",
+        b"TSA" => "TSOA",
+        b"TSC" => "TSOC",
+        b"TSP" => "TSOP",
+        b"TST" => "TSOT",
+        _ => return None,
+    })
+}
+
+/// An ID3v2.2 picture body (encoding, three-letter format, type, description, data) as an `APIC` body, which
+/// names the format as a MIME type.
+fn new_picture_body(old: &[u8]) -> Result<Vec<u8>, Id3Error> {
+    if old.len() < 6 {
+        return invalid("a picture is cut short");
+    }
+    let mime: &[u8] = match &old[1..4] {
+        b"JPG" => b"image/jpeg",
+        b"PNG" => b"image/png",
+        _ => return invalid("an old-style picture is neither JPEG nor PNG"),
+    };
+    // The description ends with one zero byte (two, on a pair boundary, in UTF-16).
+    let width = if old[0] == 1 { 2 } else { 1 };
+    let description = old[5..]
+        .chunks_exact(width)
+        .position(|c| c.iter().all(|&b| b == 0))
+        .ok_or(Id3Error::Invalid(
+            "a picture description is not terminated".to_owned(),
+        ))?;
+    let start = 5 + (description + 1) * width;
+    // The same old tags can carry a stray zero byte between the description and the picture itself.
+    let zeros = old[start..].iter().take_while(|&&b| b == 0).count();
+    let mut body = vec![old[0]];
+    body.extend_from_slice(mime);
+    body.push(0);
+    body.extend_from_slice(&old[4..start]);
+    body.extend_from_slice(&old[start + zeros..]);
+    Ok(body)
+}
+
 /// Parses the frames of the tag at the start of `bytes`. The rest of the tag after the last frame
-/// must be zero padding.
+/// must be zero padding. Old three-letter frame names are returned under their present names (and so
+/// are written back correctly).
 pub fn read_frames(bytes: &[u8]) -> Result<Vec<Frame>, Id3Error> {
     let end = tag_length(bytes)?;
     let mut at = 10;
     let mut frames = Vec::new();
     while at + 10 <= end && bytes[at] != 0 {
         let id = &bytes[at..at + 4];
-        if !id
-            .iter()
-            .all(|b| b.is_ascii_uppercase() || b.is_ascii_digit())
+        let old_name = old_frame_name(id);
+        if old_name.is_none()
+            && !id
+                .iter()
+                .all(|b| b.is_ascii_uppercase() || b.is_ascii_digit())
         {
             return invalid("a frame has an invalid name");
         }
@@ -508,9 +633,20 @@ pub fn read_frames(bytes: &[u8]) -> Result<Vec<Frame>, Id3Error> {
         if size == 0 || at + 10 + size > end {
             return invalid("a frame is empty or runs past the end of the tag");
         }
-        frames.push(Frame {
-            id: String::from_utf8_lossy(id).into_owned(),
-            body: bytes[at + 10..at + 10 + size].to_vec(),
+        let body = bytes[at + 10..at + 10 + size].to_vec();
+        frames.push(match old_name {
+            Some("APIC") => Frame {
+                id: "APIC".to_owned(),
+                body: new_picture_body(&body)?,
+            },
+            Some(name) => Frame {
+                id: name.to_owned(),
+                body,
+            },
+            None => Frame {
+                id: String::from_utf8_lossy(id).into_owned(),
+                body,
+            },
         });
         at += 10 + size;
     }
@@ -718,6 +854,58 @@ pub fn check_tag(bytes: &[u8], expected: &TagSet) -> Result<(), Id3Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_song_with_a_huge_picture_from_another_program_can_still_have_it_replaced() {
+        // Another program's 5 MB cover (type 0), as found on 118 of the owner's songs (2026-11-26).
+        let mut huge = vec![
+            0u8, b'i', b'm', b'a', b'g', b'e', b'/', b'j', b'p', b'e', b'g', 0, 0, 0,
+        ];
+        huge.extend([0xFF, 0xD8, 0xFF, 0xE0]);
+        huge.extend(std::iter::repeat_n(0xABu8, 5 * 1024 * 1024));
+        let frames = frame("APIC", huge);
+        let mut file = assemble_tag(&frames).unwrap();
+        file.extend_from_slice(&[0xFF, 0xFB, 0x90, 0x00]);
+        let edit = TagEdit {
+            pictures: vec![PictureChange::Set(Picture {
+                kind: PictureKind::FrontCover,
+                data: jpeg(),
+            })],
+            lyrics: None,
+        };
+        let tag = edit_tag(&file, &edit).unwrap();
+        assert!(tag.len() < 10 * 1024, "the huge picture is gone");
+        let pictures: Vec<u8> = read_frames(&tag)
+            .unwrap()
+            .iter()
+            .filter(|f| f.id == "APIC")
+            .map(|f| frame_picture(f).unwrap().1)
+            .collect();
+        assert_eq!(pictures, [3]);
+
+        // Undo puts the large picture back; the same picture offered as a new one is still refused.
+        let old = Picture {
+            kind: PictureKind::FrontCover,
+            data: [
+                &[0xFF, 0xD8, 0xFF, 0xE0][..],
+                &vec![0xABu8; 5 * 1024 * 1024],
+            ]
+            .concat(),
+        };
+        let mut small = tag;
+        small.extend_from_slice(&[0xFF, 0xFB, 0x90, 0x00]);
+        let put = |change: PictureChange| {
+            edit_tag(
+                &small,
+                &TagEdit {
+                    pictures: vec![change],
+                    lyrics: None,
+                },
+            )
+        };
+        assert!(put(PictureChange::Set(old.clone())).is_err());
+        assert!(put(PictureChange::Restore(old)).unwrap().len() > 5 * 1024 * 1024);
+    }
 
     fn jpeg() -> Vec<u8> {
         let mut data = vec![0xFF, 0xD8, 0xFF, 0xE0, 0, 16];
@@ -1194,6 +1382,58 @@ mod edit_tests {
         let mut bad = header(packed.len());
         bad.extend(&packed);
         assert!(read_frames(&bad).is_err());
+    }
+
+    #[test]
+    fn old_three_letter_frame_names_are_read_and_written_back_under_their_present_names() {
+        // As iTunes 10 left some songs: a 2.3 tag whose frames are named "TT2\0", "PIC\0" and so on.
+        let old = |name: &[u8; 3], body: &[u8]| {
+            let mut bytes = name.to_vec();
+            bytes.push(0);
+            bytes.extend_from_slice(&(body.len() as u32).to_be_bytes());
+            bytes.extend_from_slice(&[0, 0]);
+            bytes.extend_from_slice(body);
+            bytes
+        };
+        let mut picture = b"\x00JPG\x03\x00\x00".to_vec(); // with the stray zero those songs have
+        picture.extend_from_slice(&jpeg(1));
+        let mut frames = old(b"TT2", b"\x00Song");
+        frames.extend(old(b"COM", b"\x00eng\x00words"));
+        frames.extend(old(b"PIC", &picture));
+        frames.extend(frame("TPUB", b"\x00Label".to_vec()));
+        let mut file = assemble_tag(&frames).unwrap();
+        file.extend_from_slice(b"AUDIO");
+
+        let read = read_frames(&file).unwrap();
+        assert_eq!(
+            read.iter().map(|f| f.id.as_str()).collect::<Vec<_>>(),
+            ["TIT2", "COMM", "APIC", "TPUB"]
+        );
+        assert_eq!(frame_text(&read[0]).unwrap(), "Song");
+        assert_eq!(
+            frame_picture(&read[2]).unwrap(),
+            ("image/jpeg".to_owned(), 3, jpeg(1))
+        );
+
+        // A new cover replaces the old picture; the rest stays, now under names every player knows.
+        let edited = edit_tag(
+            &file,
+            &TagEdit {
+                pictures: vec![PictureChange::Set(Picture {
+                    kind: PictureKind::FrontCover,
+                    data: jpeg(2),
+                })],
+                lyrics: None,
+            },
+        )
+        .unwrap();
+        assert_eq!(pictures_of(&edited), vec![(3, jpeg(2))]);
+        assert!(!edited.windows(4).any(|w| w == b"TT2\0"));
+        assert_eq!(read_frames(&edited).unwrap()[1].body, b"\x00eng\x00words");
+
+        // A three-letter name this program does not know is still refused.
+        let unknown = assemble_tag(&old(b"CRM", b"x")).unwrap();
+        assert!(read_frames(&unknown).is_err());
     }
 
     #[test]

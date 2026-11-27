@@ -174,6 +174,7 @@ export function candidateKind(c: ReviewCandidate): string {
   if (c.source === "whisper-draft") return "AI draft from listening: check the words";
   if (c.source === "lyric-ai") return "AI-checked against the singing";
   if (c.source === "photo") return "Read from a booklet photo: check every word";
+  if (c.source === "yours") return "typed or pasted here";
   if (c.other_artist) return "same song, another artist";
   if (c.other_version) return "another version";
   if (c.length_unknown) return "length not compared";

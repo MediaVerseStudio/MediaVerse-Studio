@@ -3,7 +3,7 @@
 // through `Http`: in the app that is the native relay (apps/android HomeHttp.kt, home-network addresses only, since the
 // page itself is https and may not fetch plain http); in a desktop browser it is fetch.
 
-import type { Named } from "./flags.ts";
+import { isInbox, MASTER_NAME, type Named } from "./flags.ts";
 
 export const JELLYFIN_PORT = 8096;
 
@@ -13,9 +13,20 @@ export type HttpReply = { status: number; body: string };
 export type Http = (request: HttpRequest) => Promise<HttpReply>;
 
 export type Server = { base: string; name: string; id: string; version: string };
-export type Session = { base: string; name: string; serverId: string; userId: string; token: string };
+/** `deviceId`: the name this sign-in was made under, when it is a profile's (each profile on a device signs in under its own, so they do not sign each other out). */
+export type Session = { base: string; name: string; serverId: string; userId: string; token: string; deviceId?: string };
+/** A person on the server, as much of one as profiles need. */
+export type ServerUser = { id: string; name: string; admin: boolean; disabled: boolean };
+/** Who may see (and with `canEdit`, change) a playlist besides its owner. */
+export type Share = { userId: string; canEdit: boolean };
+const signed = (session: Session): { token: string; device?: string } => ({ token: session.token, device: session.deviceId });
+type UserItem = { Id: string; Name?: string; Policy?: Record<string, unknown> & { IsAdministrator?: boolean; IsDisabled?: boolean } };
+const userFrom = (item: UserItem): ServerUser => ({ id: item.Id, name: item.Name ?? "", admin: item.Policy?.IsAdministrator === true, disabled: item.Policy?.IsDisabled === true });
+/** The shared flag lists (D96), which every user of the server may change (D213). */
+export const isFlagList = (name: string): boolean => name === MASTER_NAME || isInbox(name);
 export type ServerSong = Named & { id: string; durationMs: number; /** Its place in a playlist (needed to remove it from that playlist), when read from one. */ entryId?: string };
-export type ServerPlaylist = { id: string; name: string };
+/** `file`: a playlist file in the music folder (.m3u, .wpl …) that Jellyfin shows to every user and the app cannot hide. */
+export type ServerPlaylist = { id: string; name: string; file?: boolean };
 export type ServerArtist = { id: string; name: string; imageTag: string | null; musicBrainzId: string | null };
 /** An album as the server lists it for choosing what to keep (`songs`: how many, when the server says). */
 export type ServerAlbum = { id: string; title: string; artist: string; year: number | null; songs: number | null };
@@ -82,13 +93,13 @@ export class Jellyfin {
     this.device = device;
   }
 
-  private async call<T>(base: string, path: string, options: { token?: string; method?: string; body?: unknown; timeout?: number } = {}): Promise<T> {
+  private async call<T>(base: string, path: string, options: { token?: string; device?: string; method?: string; body?: unknown; timeout?: number } = {}): Promise<T> {
     let reply: HttpReply;
     try {
       reply = await this.http({
         method: options.method ?? "GET",
         url: `${base}${path}`,
-        headers: { Authorization: header(this.deviceId, this.device, options.token), ...(options.body ? { "Content-Type": "application/json" } : {}) },
+        headers: { Authorization: header(options.device ?? this.deviceId, this.device, options.token), ...(options.body ? { "Content-Type": "application/json" } : {}) },
         body: options.body ? JSON.stringify(options.body) : undefined,
         timeout: options.timeout,
       });
@@ -140,7 +151,7 @@ export class Jellyfin {
       const reply = await this.call<{ Items: ArtistItem[]; TotalRecordCount?: number }>(
         session.base,
         `/Artists/AlbumArtists?userId=${encodeURIComponent(session.userId)}&Recursive=true&Fields=ProviderIds&StartIndex=${start}&Limit=500`,
-        { token: session.token, timeout: 60_000 },
+        { ...signed(session), timeout: 60_000 },
       );
       for (const item of reply.Items) found.push({ id: item.Id, name: item.Name ?? "", imageTag: item.ImageTags?.Primary ?? null, musicBrainzId: item.ProviderIds?.MusicBrainzArtist ?? null });
       if (reply.Items.length < 500 || found.length >= (reply.TotalRecordCount ?? Infinity)) break;
@@ -156,7 +167,7 @@ export class Jellyfin {
       const reply = await this.call<{ Items: ArtistItem[]; TotalRecordCount?: number }>(
         session.base,
         `/Artists?userId=${encodeURIComponent(session.userId)}&Recursive=true&Fields=ProviderIds&StartIndex=${start}&Limit=500`,
-        { token: session.token, timeout: 60_000 },
+        { ...signed(session), timeout: 60_000 },
       );
       for (const item of reply.Items) if (!own.has(item.Id)) found.push({ id: item.Id, name: item.Name ?? "", imageTag: item.ImageTags?.Primary ?? null, musicBrainzId: item.ProviderIds?.MusicBrainzArtist ?? null });
       if (reply.Items.length < 500 || start + reply.Items.length >= (reply.TotalRecordCount ?? Infinity)) break;
@@ -171,7 +182,7 @@ export class Jellyfin {
     try {
       reply = await this.http({
         url: `${session.base}/Items/${encodeURIComponent(artist.id)}/Images/Primary?tag=${encodeURIComponent(artist.imageTag)}&maxWidth=${maxWidth}&quality=90&format=Jpg`,
-        headers: { Authorization: header(this.deviceId, this.device, session.token) },
+        headers: { Authorization: header(session.deviceId ?? this.deviceId, this.device, session.token) },
         timeout: 30_000,
         binary: true,
       });
@@ -188,14 +199,14 @@ export class Jellyfin {
     const reply = await this.call<{ Items: Item[] }>(
       session.base,
       `/Users/${session.userId}/Items?Recursive=true&IncludeItemTypes=Audio&Fields=Album&Limit=60&SearchTerm=${encodeURIComponent(term)}`,
-      { token: session.token, timeout: 20_000 },
+      { ...signed(session), timeout: 20_000 },
     );
     return reply.Items.map(songFromItem);
   }
 
   /** Asks the server to look for changed files (Dashboard > Libraries > Scan). Needs an administrator's account; anyone else is refused (403). */
   async refreshLibrary(session: Session): Promise<void> {
-    await this.call(session.base, "/Library/Refresh", { token: session.token, method: "POST", timeout: 20_000 });
+    await this.call(session.base, "/Library/Refresh", { ...signed(session), method: "POST", timeout: 20_000 });
   }
 
   /** Every song the server holds with the file it was read from (the server's own path), a page at a time. */
@@ -205,7 +216,7 @@ export class Jellyfin {
       const reply = await this.call<{ Items: Array<{ Id: string; Path?: string }>; TotalRecordCount?: number }>(
         session.base,
         `/Users/${session.userId}/Items?Recursive=true&IncludeItemTypes=Audio&Fields=Path&StartIndex=${start}&Limit=2000`,
-        { token: session.token, timeout: 90_000 },
+        { ...signed(session), timeout: 90_000 },
       );
       for (const item of reply.Items) if (item.Path) found.push({ id: item.Id, path: item.Path });
       if (reply.Items.length < 2_000 || found.length >= (reply.TotalRecordCount ?? Infinity)) break;
@@ -218,7 +229,7 @@ export class Jellyfin {
     const reply = await this.call<{ Items: LibraryItem[]; TotalRecordCount?: number }>(
       session.base,
       `/Users/${session.userId}/Items?Recursive=true&IncludeItemTypes=Audio&Fields=Genres,DateCreated,ProductionYear&SortBy=AlbumArtist,Album,ParentIndexNumber,IndexNumber,SortName&StartIndex=${start}&Limit=${limit}`,
-      { token: session.token, timeout: 90_000 },
+      { ...signed(session), timeout: 90_000 },
     );
     return { items: reply.Items, total: reply.TotalRecordCount ?? reply.Items.length };
   }
@@ -226,7 +237,7 @@ export class Jellyfin {
   /** A song's lyrics as the server holds them (read from a .lrc file or the file's tag), or null when it has none. */
   async songLyrics(session: Session, songId: string): Promise<ServerLyrics | null> {
     try {
-      return await this.call<ServerLyrics>(session.base, `/Audio/${encodeURIComponent(songId)}/Lyrics`, { token: session.token, timeout: 20_000 });
+      return await this.call<ServerLyrics>(session.base, `/Audio/${encodeURIComponent(songId)}/Lyrics`, { ...signed(session), timeout: 20_000 });
     } catch (thrown) {
       if (thrown instanceof JellyfinProblem && thrown.kind === "other") return null; // 404: no lyrics
       throw thrown;
@@ -239,7 +250,7 @@ export class Jellyfin {
     try {
       reply = await this.http({
         url: `${session.base}/Items/${encodeURIComponent(itemId)}/Images/Primary?maxWidth=${maxWidth}&quality=90&format=Jpg`,
-        headers: { Authorization: header(this.deviceId, this.device, session.token) },
+        headers: { Authorization: header(session.deviceId ?? this.deviceId, this.device, session.token) },
         timeout: 30_000,
         binary: true,
       });
@@ -258,7 +269,7 @@ export class Jellyfin {
       const reply = await this.call<{ Items: Array<{ Id: string; Name?: string; AlbumArtist?: string; ProductionYear?: number; ChildCount?: number }>; TotalRecordCount?: number }>(
         session.base,
         `/Users/${session.userId}/Items?Recursive=true&IncludeItemTypes=MusicAlbum&Fields=ChildCount&SortBy=ProductionYear,SortName${artistId ? `&AlbumArtistIds=${encodeURIComponent(artistId)}` : ""}&StartIndex=${start}&Limit=500`,
-        { token: session.token, timeout: 60_000 },
+        { ...signed(session), timeout: 60_000 },
       );
       for (const item of reply.Items) found.push({ id: item.Id, title: item.Name ?? "", artist: item.AlbumArtist ?? "", year: item.ProductionYear ?? null, songs: item.ChildCount ?? null });
       if (reply.Items.length < 500 || found.length >= (reply.TotalRecordCount ?? Infinity)) break;
@@ -277,7 +288,7 @@ export class Jellyfin {
           : `/Users/${session.userId}/Items?Recursive=true&IncludeItemTypes=Audio&Fields=${fields}&SortBy=AlbumArtist,Album,ParentIndexNumber,IndexNumber${
               source.kind === "artist" ? `&AlbumArtistIds=${encodeURIComponent(source.id ?? "")}` : source.kind === "appears" ? `&ArtistIds=${encodeURIComponent(source.id ?? "")}` : source.kind === "album" ? `&ParentId=${encodeURIComponent(source.id ?? "")}` : ""
             }&StartIndex=${start}&Limit=500`;
-      const reply = await this.call<{ Items: SyncItem[]; TotalRecordCount?: number }>(session.base, path, { token: session.token, timeout: 90_000 });
+      const reply = await this.call<{ Items: SyncItem[]; TotalRecordCount?: number }>(session.base, path, { ...signed(session), timeout: 90_000 });
       for (const item of reply.Items) {
         const song = syncSongFrom(item);
         if (song) out.push(song);
@@ -288,12 +299,12 @@ export class Jellyfin {
   }
 
   async playlists(session: Session): Promise<ServerPlaylist[]> {
-    const reply = await this.call<{ Items: Array<{ Id: string; Name?: string }> }>(
+    const reply = await this.call<{ Items: Array<{ Id: string; Name?: string; Path?: string }> }>(
       session.base,
-      `/Users/${session.userId}/Items?Recursive=true&IncludeItemTypes=Playlist&Limit=500`,
-      { token: session.token, timeout: 20_000 },
+      `/Users/${session.userId}/Items?Recursive=true&IncludeItemTypes=Playlist&Fields=Path&Limit=500`,
+      { ...signed(session), timeout: 20_000 },
     );
-    return reply.Items.map((item) => ({ id: item.Id, name: item.Name ?? "" }));
+    return reply.Items.map((item) => ({ id: item.Id, name: item.Name ?? "", ...(/\.(m3u8?|wpl|zpl|pls|xspf)$/i.test(item.Path ?? "") ? { file: true } : {}) }));
   }
 
   /** The songs in a playlist, with every artist name the server holds for each. */
@@ -301,7 +312,7 @@ export class Jellyfin {
     const reply = await this.call<{ Items: Item[] }>(
       session.base,
       `/Playlists/${encodeURIComponent(id)}/Items?userId=${encodeURIComponent(session.userId)}&Fields=Album&Limit=5000`,
-      { token: session.token, timeout: 30_000 },
+      { ...signed(session), timeout: 30_000 },
     );
     return reply.Items.map(songFromItem);
   }
@@ -309,29 +320,146 @@ export class Jellyfin {
   /** Adds songs to an existing playlist (a song already in it is added again by Jellyfin, so callers check first). */
   async addToPlaylist(session: Session, playlistId: string, songIds: string[]): Promise<void> {
     if (!songIds.length) return;
-    await this.call(session.base, `/Playlists/${encodeURIComponent(playlistId)}/Items?ids=${songIds.map(encodeURIComponent).join(",")}&userId=${encodeURIComponent(session.userId)}`, { token: session.token, method: "POST" });
+    await this.call(session.base, `/Playlists/${encodeURIComponent(playlistId)}/Items?ids=${songIds.map(encodeURIComponent).join(",")}&userId=${encodeURIComponent(session.userId)}`, { ...signed(session), method: "POST" });
   }
 
   /** Removes entries (each song's `entryId` in that playlist, not the song's own ID) from a playlist. */
   async removeFromPlaylist(session: Session, playlistId: string, entryIds: string[]): Promise<void> {
     if (!entryIds.length) return;
-    await this.call(session.base, `/Playlists/${encodeURIComponent(playlistId)}/Items?entryIds=${entryIds.map(encodeURIComponent).join(",")}`, { token: session.token, method: "DELETE" });
+    await this.call(session.base, `/Playlists/${encodeURIComponent(playlistId)}/Items?entryIds=${entryIds.map(encodeURIComponent).join(",")}`, { ...signed(session), method: "DELETE" });
   }
 
-  /** Deletes a whole playlist (never the songs in it). */
+  /**
+   * Deletes a whole playlist (never the songs in it). Jellyfin lets only its owner do that (D213): another profile's
+   * flag list is emptied instead, and its owner's device deletes it once empty.
+   */
   async deletePlaylist(session: Session, playlistId: string): Promise<void> {
-    await this.call(session.base, `/Items/${encodeURIComponent(playlistId)}`, { token: session.token, method: "DELETE" });
+    try {
+      await this.call(session.base, `/Items/${encodeURIComponent(playlistId)}`, { ...signed(session), method: "DELETE" });
+    } catch (thrown) {
+      if (!(thrown instanceof JellyfinProblem) || thrown.kind === "unreachable") throw thrown;
+      // A refusal answers "401" like a lost sign-in: asking who we are tells the two apart.
+      await this.me(session);
+      try {
+        const entries = (await this.playlistSongs(session, playlistId)).map((song) => song.entryId).filter((id): id is string => !!id);
+        for (let i = 0; i < entries.length; i += 50) await this.removeFromPlaylist(session, playlistId, entries.slice(i, i + 50));
+      } catch (left) {
+        // Not shared for changing (a list from before profiles): it stays until its owner's device shares or clears it.
+        if (!(left instanceof JellyfinProblem) || left.kind === "unreachable") throw left;
+      }
+    }
   }
 
-  async createPlaylist(session: Session, name: string, songIds: string[]): Promise<string> {
+  /** Makes a playlist: private unless `shares` says who else may see it. The flag lists are shared with every user, to change. */
+  async createPlaylist(session: Session, name: string, songIds: string[], shares?: Share[]): Promise<string> {
+    const wanted = shares ?? (isFlagList(name) ? (await this.users(session).catch(() => [])).filter((u) => u.id !== session.userId && !u.disabled).map((u) => ({ userId: u.id, canEdit: true })) : []);
     const made = await this.call<{ Id: string }>(session.base, "/Playlists", {
-      token: session.token,
+      ...signed(session),
       method: "POST",
-      body: { Name: name, Ids: songIds, UserId: session.userId, MediaType: "Audio" },
+      body: { Name: name, Ids: songIds, UserId: session.userId, MediaType: "Audio", IsPublic: false, Users: wanted.map((s) => ({ UserId: s.userId, CanEdit: s.canEdit })) },
     });
     return made.Id;
   }
-}
+
+  /** Who a playlist is shared with, and whether everyone can see it. Jellyfin answers its owner and its editors. */
+  async playlistAccess(session: Session, playlistId: string): Promise<{ everyone: boolean; shares: Share[] }> {
+    const reply = await this.call<{ OpenAccess?: boolean; Shares?: Array<{ UserId: string; CanEdit?: boolean }> }>(session.base, `/Playlists/${encodeURIComponent(playlistId)}`, signed(session));
+    return { everyone: reply.OpenAccess === true, shares: (reply.Shares ?? []).map((s) => ({ userId: s.UserId, canEdit: s.CanEdit === true })) };
+  }
+
+  /** Replaces a playlist's list of people (its owner or an editor may). `everyone`: also whether all users see it (the owner only). */
+  async setPlaylistAccess(session: Session, playlistId: string, access: { shares?: Share[]; everyone?: boolean }): Promise<void> {
+    const body: Record<string, unknown> = {};
+    if (access.shares) body.Users = access.shares.map((s) => ({ UserId: s.userId, CanEdit: s.canEdit }));
+    if (access.everyone !== undefined) body.IsPublic = access.everyone;
+    await this.call(session.base, `/Playlists/${encodeURIComponent(playlistId)}`, { ...signed(session), method: "POST", body });
+  }
+
+  // ---- New music sent to the server, through the MediaVerse Sync plugin (D215) ----
+
+  /** Whether the server's plugin takes new music; null when the server has no such plugin. */
+  async mediaverseInfo(session: Session): Promise<{ uploads: boolean } | null> {
+    try {
+      const reply = await this.call<{ Uploads?: boolean }>(session.base, "/MediaVerse/Info", { ...signed(session), timeout: 15_000 });
+      return reply ? { uploads: reply.Uploads === true } : null;
+    } catch (thrown) {
+      if (thrown instanceof JellyfinProblem && thrown.kind === "other") return null; // 404: not installed
+      throw thrown;
+    }
+  }
+
+  /** Where one song is sent, and the sign-in it is sent with. */
+  uploadRequest(session: Session, path: string): { url: string; headers: Record<string, string> } {
+    return { url: `${session.base}/MediaVerse/Upload?path=${encodeURIComponent(path)}`, headers: { Authorization: header(session.deviceId ?? this.deviceId, this.device, session.token) } };
+  }
+
+  // ---- Users and profiles (D213) ----
+
+  /** The users the server shows before anyone signs in (the unhidden ones). */
+  async publicUsers(base: string): Promise<ServerUser[]> {
+    return (await this.call<UserItem[]>(base, "/Users/Public")).map(userFrom);
+  }
+
+  /** Every user of the server (any signed-in user may ask). */
+  async users(session: Session): Promise<ServerUser[]> {
+    return (await this.call<UserItem[]>(session.base, "/Users", signed(session))).map(userFrom);
+  }
+
+  /** The signed-in user; fails with "signed_out" when the sign-in is no longer good. */
+  async me(session: Session): Promise<ServerUser> {
+    return userFrom(await this.call<UserItem>(session.base, "/Users/Me", signed(session)));
+  }
+
+  /** Signs in by name; a profile has no password. `slot` keeps this sign-in apart from the device's other ones. */
+  async signInAs(server: { base: string; name: string; id: string }, name: string, password = "", slot = name): Promise<Session> {
+    const deviceId = `${this.deviceId}-${Array.from(new TextEncoder().encode(slot.toLowerCase()), (b) => b.toString(16).padStart(2, "0")).join("").slice(0, 40)}`;
+    const reply = await this.call<{ AccessToken: string; User: { Id: string } }>(server.base, "/Users/AuthenticateByName", { device: deviceId, method: "POST", body: { Username: name, Pw: password } });
+    return { base: server.base, name: server.name, serverId: server.id, userId: reply.User.Id, token: reply.AccessToken, deviceId };
+  }
+
+  async signOut(session: Session): Promise<void> {
+    await this.call(session.base, "/Sessions/Logout", { ...signed(session), method: "POST" });
+  }
+
+  /** Makes a user with no password (an administrator's sign-in only). */
+  async createUser(admin: Session, name: string): Promise<ServerUser> {
+    const made = await this.call<UserItem>(admin.base, "/Users/New", { ...signed(admin), method: "POST", body: { Name: name } });
+    // Made hidden: a profile is listed, and only reachable from the home network (it has no password).
+    await this.call(admin.base, `/Users/${encodeURIComponent(made.Id)}/Policy`, { ...signed(admin), method: "POST", body: { ...(made.Policy ?? {}), IsHidden: false, EnableRemoteAccess: false } });
+    return userFrom(made);
+  }
+
+  // ---- A profile's favorites and plays (D213) ----
+
+  async favoriteIds(session: Session): Promise<string[]> {
+    const reply = await this.call<{ Items: Array<{ Id: string }> }>(session.base, `/Users/${session.userId}/Items?Recursive=true&IncludeItemTypes=Audio&Filters=IsFavorite&Limit=50000`, { ...signed(session), timeout: 30_000 });
+    return reply.Items.map((item) => item.Id);
+  }
+
+  /** The user's favorite songs with their names, to find the same songs on a device. */
+  async favoriteSongs(session: Session): Promise<Array<ServerSong & { artists: string[] }>> {
+    const reply = await this.call<{ Items: Item[] }>(session.base, `/Users/${session.userId}/Items?Recursive=true&IncludeItemTypes=Audio&Filters=IsFavorite&Fields=Album&Limit=50000`, { ...signed(session), timeout: 60_000 });
+    return reply.Items.map(songFromItem);
+  }
+
+  async setFavorite(session: Session, songId: string, on: boolean): Promise<void> {
+    await this.call(session.base, `/UserFavoriteItems/${encodeURIComponent(songId)}?userId=${encodeURIComponent(session.userId)}`, { ...signed(session), method: on ? "POST" : "DELETE" });
+  }
+
+  /** Counts a play for this user, at the time it happened. */
+  async markPlayed(session: Session, songId: string, at: Date = new Date()): Promise<void> {
+    await this.call(session.base, `/UserPlayedItems/${encodeURIComponent(songId)}?userId=${encodeURIComponent(session.userId)}&datePlayed=${encodeURIComponent(at.toISOString())}`, { ...signed(session), method: "POST" });
+  }
+
+  /** This user's songs by when they were last played, newest first. */
+  async recentlyPlayed(session: Session, limit = 100): Promise<Array<{ id: string; at: number; count: number }>> {
+    const reply = await this.call<{ Items: Array<{ Id: string; UserData?: { LastPlayedDate?: string; PlayCount?: number } }> }>(
+      session.base,
+      `/Users/${session.userId}/Items?Recursive=true&IncludeItemTypes=Audio&Filters=IsPlayed&SortBy=DatePlayed&SortOrder=Descending&Limit=${limit}`,
+      { ...signed(session), timeout: 30_000 },
+    );
+    return reply.Items.map((item) => ({ id: item.Id, at: Date.parse(item.UserData?.LastPlayedDate ?? "") || 0, count: item.UserData?.PlayCount ?? 1 }));
+  }}
 
 type Item = { Id: string; Name?: string; Album?: string; AlbumArtist?: string; Artists?: string[]; RunTimeTicks?: number; PlaylistItemId?: string };
 

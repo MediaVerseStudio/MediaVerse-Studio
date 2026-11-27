@@ -15,7 +15,7 @@ const button = (text: string, className = "secondary"): HTMLButtonElement => {
 };
 
 /** `syncRoot` is where the default server's sign-in and sync block is drawn (main.ts hands it to problem-sync-ui). */
-export function renderJellyfinSettings(root: HTMLElement): { refresh: () => void; syncRoot: HTMLElement } {
+export function renderJellyfinSettings(root: HTMLElement): { refresh: () => void; syncRoot: HTMLElement; profilesRoot: HTMLElement } {
   root.className = "settings-block jellyfin-settings";
   const bridge = jellyfinBridge();
   const status = el("p", "field-hint");
@@ -23,6 +23,7 @@ export function renderJellyfinSettings(root: HTMLElement): { refresh: () => void
   const servers = el("div", "jellyfin-servers");
   const hiddenNote = el("p", "field-hint");
   const syncRoot = el("div", "jellyfin-sync");
+  const profilesRoot = el("div");
   const firewallBox = el("div", "jellyfin-firewall");
   const steps = el("div", "jellyfin-steps");
   const again = button("Search again");
@@ -35,6 +36,7 @@ export function renderJellyfinSettings(root: HTMLElement): { refresh: () => void
     servers,
     hiddenNote,
     syncRoot,
+    profilesRoot,
     firewallBox,
     steps,
     again,
@@ -42,7 +44,7 @@ export function renderJellyfinSettings(root: HTMLElement): { refresh: () => void
   if (!bridge) {
     status.textContent = "Jellyfin setup works in the desktop program only.";
     again.hidden = true;
-    return { refresh: () => {}, syncRoot };
+    return { refresh: () => {}, syncRoot, profilesRoot };
   }
 
   async function musicFolder(): Promise<string | null> {
@@ -201,5 +203,5 @@ export function renderJellyfinSettings(root: HTMLElement): { refresh: () => void
   }
 
   again.addEventListener("click", () => void search());
-  return { refresh: () => void search(), syncRoot };
+  return { refresh: () => void search(), syncRoot, profilesRoot };
 }

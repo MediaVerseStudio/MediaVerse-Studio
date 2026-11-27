@@ -61,7 +61,7 @@ test("a computer playlist the server does not have is made there, and songs the 
   assert.deepEqual(w.log, ["server: create Road trip [s1,s3]"]);
   assert.equal(report.madeOnServer, 1);
   assert.equal(report.notOnServer, 1);
-  assert.deepEqual(state, { p1: { name: "Road trip", ids: ["s1", "s3"] } });
+  assert.deepEqual(state, { p1: { name: "Road trip", ids: ["s1", "s3"], held: ["s1", "s3"] } });
   assert.match(describePlaylistSync(report), /1 playlist made on the server.*1 song in playlists here is not on the server/);
 });
 
@@ -71,7 +71,7 @@ test("a playlist made on the server is brought in with the songs this library ha
   assert.deepEqual(w.log, ["here: save From Jellyfin [M:\\A\\X\\2.mp3,M:\\B\\Y\\3.mp3]"]);
   assert.equal(report.madeHere, 1);
   assert.equal(report.notHere, 1, "s4 is not in this library");
-  assert.deepEqual(state, { p100: { name: "From Jellyfin", ids: ["s2", "s4", "s3"] } }, "s4 stays on the server's list");
+  assert.deepEqual(state, { p100: { name: "From Jellyfin", ids: ["s2", "s4", "s3"], held: ["s2", "s3"] } }, "s4 stays on the server's list");
 });
 
 test("songs added on the server come here, and songs added here go there, at the same round", async () => {
@@ -84,10 +84,10 @@ test("songs added on the server come here, and songs added here go there, at the
 
 test("a song taken out on one side is taken out on the other", async () => {
   const there = world({ Mix: ["s1", "s2", "s3"] }, [{ id: "p1", name: "Mix", paths: ["M:\\A\\X\\1.mp3", "M:\\A\\X\\2.mp3"] }]);
-  await there.run({ p1: { name: "Mix", ids: ["s1", "s2", "s3"] } });
+  await there.run({ p1: { name: "Mix", ids: ["s1", "s2", "s3"], held: ["s1", "s2", "s3"] } });
   assert.deepEqual(there.log, ["server: remove Mix [pl-Mix#2]"], "s3 was taken out here");
   const here = world({ Mix: ["s1"] }, [{ id: "p1", name: "Mix", paths: ["M:\\A\\X\\1.mp3", "M:\\A\\X\\2.mp3"] }]);
-  const { report } = await here.run({ p1: { name: "Mix", ids: ["s1", "s2"] } });
+  const { report } = await here.run({ p1: { name: "Mix", ids: ["s1", "s2"], held: ["s1", "s2"] } });
   assert.deepEqual(here.log, ["here: save Mix [M:\\A\\X\\1.mp3]"], "s2 was taken out on the server");
   assert.equal(report.removedHere, 1);
 });
@@ -96,6 +96,17 @@ test("a server song this library cannot hold is never mistaken for one taken out
   const w = world({ Mix: ["s1", "s4"] }, [{ id: "p1", name: "Mix", paths: ["M:\\A\\X\\1.mp3"] }]);
   await w.run({ p1: { name: "Mix", ids: ["s1", "s4"] } });
   assert.deepEqual(w.log, [], "s4 stays on the server and nothing is written here");
+});
+
+test("a song that comes into this library after its playlist did is added here, not taken off the server's", async () => {
+  // s2 was on the server's list but not in this library at the last round; now it is.
+  const w = world({ Mix: ["s1", "s2"] }, [{ id: "p1", name: "Mix", paths: ["M:\\A\\X\\1.mp3"] }]);
+  await w.run({ p1: { name: "Mix", ids: ["s1", "s2"], held: ["s1"] } });
+  assert.deepEqual(w.log, ["here: save Mix [M:\\A\\X\\1.mp3,M:\\A\\X\\2.mp3]"]);
+  // A record from before this was remembered never takes it off either.
+  const old = world({ Mix: ["s1", "s2"] }, [{ id: "p1", name: "Mix", paths: ["M:\\A\\X\\1.mp3"] }]);
+  await old.run({ p1: { name: "Mix", ids: ["s1", "s2"] } });
+  assert.deepEqual(old.log, ["here: save Mix [M:\\A\\X\\1.mp3,M:\\A\\X\\2.mp3]"]);
 });
 
 test("nothing changing means nothing is written, and a different order alone is not a change", async () => {

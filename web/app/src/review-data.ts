@@ -1,10 +1,12 @@
 // Which albums and tracks the Review page lists as missing artwork, missing lyrics or having audio defects.
 // No DOM or bridge access, so it is unit tested.
 
+import type { SongArt } from "./artwork-plan";
+
 /** A picture inside a song that breaks the embedding rules (over 1000 pixels, PNG, or 500 KB or more). */
-export type EmbedIssue = { kind: "front_cover" | "back_cover" | "artist_photo" | "other"; width: number; height: number; kb: number; png: boolean };
+export type EmbedIssue = { kind: "front_cover" | "back_cover" | "artist_photo" | "other"; width: number; height: number; kb: number; png: boolean; label?: boolean };
 /** `cover_size`: the best front cover there is for the song (in it or in its folder), [width, height]. */
-export type GapFile = { path: string; cover: boolean; lyrics: boolean; mp3: boolean; cover_size?: [number, number] | null; embed_issues?: EmbedIssue[] };
+export type GapFile = { path: string; art?: SongArt | null; cover: boolean; lyrics: boolean; mp3: boolean; cover_size?: [number, number] | null; embed_issues?: EmbedIssue[] };
 export type GapTrack = { title: string; artist: string | null; album: string | null; source_uri: string; album_artist?: string | null; release_year?: number | null; track_number?: number | null; length_ms?: number | null };
 
 /** `tracks`/`mp3Paths`: the songs with the gap; `albumMp3Paths`: every MP3 in the album's folder (a picture is
@@ -49,45 +51,7 @@ export function albumsWithLowCover(files: GapFile[], tracks: GapTrack[], thresho
   return gaps.sort((a, b) => Math.min(...(a.coverSize ?? [0, 0])) - Math.min(...(b.coverSize ?? [0, 0])) || (a.albumArtist ?? "").localeCompare(b.albumArtist ?? ""));
 }
 
-/** Albums with a picture inside the songs that breaks the embedding rules, with the largest of each kind. */
-export function albumsWithLargeEmbedded(files: GapFile[], tracks: GapTrack[]): AlbumGap[] {
-  const gaps = albumGroups(files, tracks, (file) => (file.embed_issues?.length ?? 0) > 0);
-  const byFolder = new Map<string, EmbedIssue[]>();
-  for (const file of files) {
-    for (const issue of file.embed_issues ?? []) {
-      const list = byFolder.get(folderOf(file.path)) ?? [];
-      const same = list.findIndex((i) => i.kind === issue.kind);
-      if (same < 0) list.push(issue);
-      else if (issue.kb > list[same].kb) list[same] = issue;
-      byFolder.set(folderOf(file.path), list);
-    }
-  }
-  for (const gap of gaps) gap.issues = byFolder.get(gap.folder) ?? [];
-  const best = new Map<string, [number, number]>();
-  for (const file of files) {
-    const size = file.cover_size;
-    const have = best.get(folderOf(file.path));
-    if (size && (!have || Math.min(...size) > Math.min(...have))) best.set(folderOf(file.path), size);
-  }
-  for (const gap of gaps) gap.coverSize = best.get(gap.folder) ?? null;
-  return gaps;
-}
-
-/** The groups of Artwork > Oversized images (owner, 2026-11-05): pictures that need resizing (over 1000 pixels),
- * then those taking too much room, over 500 KB or 200 to 500 KB (that group can be ignored), and small PNGs that
- * only need to become JPEG. An album goes in the group of its worst picture. */
-export type OversizedGroup = "resize" | "over500" | "png" | "over200";
-export const OVERSIZED_GROUPS: OversizedGroup[] = ["resize", "png", "over500", "over200"];
-
-export function oversizedGroup(gap: AlbumGap): OversizedGroup {
-  const issues = gap.issues ?? [];
-  if (issues.some((i) => Math.max(i.width, i.height) > 1000)) return "resize";
-  if (issues.some((i) => i.png)) return "png";
-  if (issues.some((i) => i.kb >= 500)) return "over500";
-  return "over200";
-}
-
-/** Albums (one per folder) where at least one track has no cover, by what the library knows of its tracks: with
+/** Albums (one per folder) where at least one track has no cover (for an MP3: none inside the song), with
  * the album artist, year and number of songs for the compact list. */
 export function albumsWithoutCover(files: GapFile[], tracks: GapTrack[]): AlbumGap[] {
   return albumGroups(files, tracks, (file) => !file.cover);
@@ -133,6 +97,15 @@ export function markSaved(files: GapFile[], paths: string[], change: MediaChange
     if (change.fixedKinds?.length) next.embed_issues = (file.embed_issues ?? []).filter((i) => !change.fixedKinds!.includes(i.kind));
     return next;
   });
+}
+
+/** Why the library check can say nothing: it read no songs, or none of the songs it read is in the song list yet. A
+ *  page that said all was well over an empty check worried the owner (2026-11-26). */
+export function checkProblem(files: GapFile[], tracks: GapTrack[]): string | null {
+  if (files.length === 0) return "Nothing was checked: no songs were found in the music folder. If it is on a network drive, make sure it is connected, then check again.";
+  const known = new Set(tracks.map((t) => t.source_uri));
+  if (!files.some((f) => known.has(f.path))) return "Nothing was compared: the song list is not ready yet. Wait a moment, then check again.";
+  return null;
 }
 
 /** What a save changed: whether the songs now have a front cover, its best size, the kinds of picture now within

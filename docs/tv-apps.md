@@ -101,7 +101,7 @@ Tizen 9, and Samsung Developers account terms for a free GPL app.
 > a small corner cover, two-line details and the lyrics across the screen (D69).
 
 
-- **On the computer:** Settings > TV > "Share my library with the TV app". Off by default; home network only;
+- **On the computer:** Settings > TV & Phone Pairing > "Share my library with my TVs and phones". Off by default; home network only;
   read only. Lists paired TVs (each can be removed).
 - **Finding and pairing (D39):** the TV asks every address on its own /24 home network (its address comes from
   Samsung's `webapis.network.getIp()`, privilege `network.public`) for MediaVerse Studio on port 47700, about 9

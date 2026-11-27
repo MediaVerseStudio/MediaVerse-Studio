@@ -64,6 +64,11 @@ class ArtProvider : ContentProvider() {
             return ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
         }
 
+        /** Forgets one song's remembered covers (its file was replaced). */
+        fun forget(context: Context, trackId: Long) {
+            File(context.cacheDir, "covers").listFiles { f -> f.name.startsWith("$trackId-") }?.forEach { it.delete() }
+        }
+
         /** Forgets the songs found to have no cover, so a newly allowed folder picture gets a chance. */
         fun forgetMissing(context: Context) {
             File(context.cacheDir, "covers").listFiles { f -> f.name.endsWith(".none") }?.forEach { it.delete() }

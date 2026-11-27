@@ -1,6 +1,8 @@
 package studio.mediaverse.app
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -21,8 +23,25 @@ class HomeSyncTest {
     }
 
     @Test
-    fun theFolderForFetchedSongsIsUnderMusic() {
-        assertEquals("Music/MediaVerse Home", HomeSync.ROOT)
+    fun fetchedSongsGoStraightIntoTheMusicFolder() {
+        assertEquals("Music", HomeSync.ROOT)
+        assertEquals("Music/Band/Record/", HomeSync.movedFolder("Music/MediaVerse Home/Band/Record/"))
+        assertNull(HomeSync.movedFolder("Music/Band/Record/"))
+        assertNull(HomeSync.movedFolder("Music/MediaVerse Home 2/Band/"))
+    }
+
+    @Test
+    fun onlySongsThisAppCreatedCountAsItsOwn() {
+        val app = "studio.mediaverse.app"
+        assertTrue(HomeSync.ownedByApp(app, "Music/Band/Record/", app))
+        assertTrue(HomeSync.ownedByApp(null, "Music/MediaVerse Home/Band/", app))
+        assertFalse(HomeSync.ownedByApp(null, "Music/Band/Record/", app))
+        assertFalse(HomeSync.ownedByApp("com.other.player", "Music/Band/Record/", app))
+    }
+
+    @Test
+    fun aMovedSongWhoseNameIsTakenGetsTheNextOne() {
+        assertEquals(listOf("01 - Song.mp3", "01 - Song (2).mp3"), HomeSync.spareNames("01 - Song.mp3").take(2))
     }
 
     @Test

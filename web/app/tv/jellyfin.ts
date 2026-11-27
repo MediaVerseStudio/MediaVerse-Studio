@@ -12,7 +12,9 @@ import type { ServerTrack } from "./library.ts";
 export const JELLYFIN_PORT = 8096;
 
 export type JellyfinServer = { base: string; name: string; id: string; version: string };
-export type JellyfinSession = { base: string; name: string; serverId: string; userId: string; token: string };
+/** `deviceId`: the name a profile's sign-in was made under (each profile signs in under its own, D213). */
+export type JellyfinSession = { base: string; name: string; serverId: string; userId: string; token: string; deviceId?: string };
+const signed = (session: JellyfinSession): { token: string; device?: string } => ({ token: session.token, device: session.deviceId });
 
 const STORE = "mediaverse.tv.jellyfin";
 const DEVICE_STORE = "mediaverse.tv.device-id";
@@ -31,19 +33,19 @@ function deviceId(): string {
   }
 }
 
-function authHeader(token?: string): string {
-  const parts = [`Client="MediaVerse Studio TV"`, `Device="Samsung TV"`, `DeviceId="${deviceId()}"`, `Version="${typeof __TV_VERSION__ === "string" ? __TV_VERSION__ : "0"}"`];
+function authHeader(token?: string, device?: string): string {
+  const parts = [`Client="MediaVerse Studio TV"`, `Device="Samsung TV"`, `DeviceId="${device ?? deviceId()}"`, `Version="${typeof __TV_VERSION__ === "string" ? __TV_VERSION__ : "0"}"`];
   if (token) parts.push(`Token="${token}"`);
   return `MediaBrowser ${parts.join(", ")}`;
 }
 
-async function call<T>(base: string, path: string, options: { token?: string; method?: string; body?: unknown; timeoutMs?: number } = {}): Promise<T> {
+async function call<T>(base: string, path: string, options: { token?: string; device?: string; method?: string; body?: unknown; timeoutMs?: number } = {}): Promise<T> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), options.timeoutMs ?? 15_000);
   try {
     const reply = await fetch(`${base}${path}`, {
       method: options.method ?? "GET",
-      headers: { Authorization: authHeader(options.token), ...(options.body ? { "Content-Type": "application/json" } : {}) },
+      headers: { Authorization: authHeader(options.token, options.device), ...(options.body ? { "Content-Type": "application/json" } : {}) },
       body: options.body ? JSON.stringify(options.body) : undefined,
       signal: controller.signal,
       cache: "no-store",
@@ -139,7 +141,7 @@ export async function fetchJellyfinLibrary(session: JellyfinSession, progress?: 
     const reply = await call<{ Items: Item[]; TotalRecordCount: number }>(
       session.base,
       `/Users/${session.userId}/Items?Recursive=true&IncludeItemTypes=Audio&Fields=Genres,ProductionYear,ParentId&SortBy=AlbumArtist,Album,ParentIndexNumber,IndexNumber&StartIndex=${start}&Limit=${page}`,
-      { token: session.token, timeoutMs: 60_000 },
+      { ...signed(session), timeoutMs: 60_000 },
     );
     tracks.push(...reply.Items.map(trackFromItem));
     progress?.(tracks.length);
@@ -169,7 +171,7 @@ export function lyricsFromJellyfin(reply: { Lyrics?: Array<{ Text?: string; Star
 
 export async function fetchJellyfinLyrics(session: JellyfinSession, id: string): Promise<TrackLyrics> {
   try {
-    return lyricsFromJellyfin(await call(session.base, `/Audio/${encodeURIComponent(id)}/Lyrics`, { token: session.token }));
+    return lyricsFromJellyfin(await call(session.base, `/Audio/${encodeURIComponent(id)}/Lyrics`, { ...signed(session) }));
   } catch {
     return lyricsFromJellyfin(null);
   }
@@ -198,7 +200,7 @@ export async function jellyfinPlaylistList(session: JellyfinSession): Promise<Ar
   const found = await call<{ Items: Array<{ Id: string; Name?: string }> }>(
     session.base,
     `/Users/${session.userId}/Items?Recursive=true&IncludeItemTypes=Playlist&Limit=500`,
-    { token: session.token, timeoutMs: 30_000 },
+    { ...signed(session), timeoutMs: 30_000 },
   );
   return found.Items.map((item) => ({ id: item.Id, name: item.Name ?? "" }));
 }
@@ -208,7 +210,7 @@ export async function jellyfinPlaylistEntries(session: JellyfinSession, playlist
   const songs = await call<{ Items: Array<{ Id: string; PlaylistItemId?: string }> }>(
     session.base,
     `/Playlists/${encodeURIComponent(playlistId)}/Items?userId=${encodeURIComponent(session.userId)}&Limit=10000`,
-    { token: session.token, timeoutMs: 30_000 },
+    { ...signed(session), timeoutMs: 30_000 },
   );
   return songs.Items.map((item) => ({ id: item.Id, entry: item.PlaylistItemId ?? "" }));
 }
@@ -228,11 +230,13 @@ export async function jellyfinPlaylists(session: JellyfinSession): Promise<Array
   return lists;
 }
 
+/** Makes a playlist: private, except a flag list, which every user of the server may change (D213). */
 export async function createJellyfinPlaylist(session: JellyfinSession, name: string, songIds: string[]): Promise<string> {
+  const others = isSharedFlagList(name) ? (await jellyfinUsers(session).catch(() => [])).filter((u) => u.id !== session.userId && !u.disabled) : [];
   const made = await call<{ Id: string }>(session.base, "/Playlists", {
-    token: session.token,
+    ...signed(session),
     method: "POST",
-    body: { Name: name, Ids: songIds, UserId: session.userId, MediaType: "Audio" },
+    body: { Name: name, Ids: songIds, UserId: session.userId, MediaType: "Audio", IsPublic: false, Users: others.map((u) => ({ UserId: u.id, CanEdit: true })) },
   });
   return made.Id;
 }
@@ -243,7 +247,7 @@ const inFifties = <T>(items: T[]): T[][] => Array.from({ length: Math.ceil(items
 export async function addToJellyfinPlaylist(session: JellyfinSession, playlistId: string, songIds: string[]): Promise<void> {
   for (const part of inFifties(songIds)) {
     await call(session.base, `/Playlists/${encodeURIComponent(playlistId)}/Items?ids=${part.map(encodeURIComponent).join(",")}&userId=${encodeURIComponent(session.userId)}`, {
-      token: session.token,
+      ...signed(session),
       method: "POST",
     });
   }
@@ -251,7 +255,7 @@ export async function addToJellyfinPlaylist(session: JellyfinSession, playlistId
 
 export async function removeFromJellyfinPlaylist(session: JellyfinSession, playlistId: string, entries: string[]): Promise<void> {
   for (const part of inFifties(entries)) {
-    await call(session.base, `/Playlists/${encodeURIComponent(playlistId)}/Items?entryIds=${part.map(encodeURIComponent).join(",")}`, { token: session.token, method: "DELETE" });
+    await call(session.base, `/Playlists/${encodeURIComponent(playlistId)}/Items?entryIds=${part.map(encodeURIComponent).join(",")}`, { ...signed(session), method: "DELETE" });
   }
 }
 
@@ -282,10 +286,15 @@ export async function flagInJellyfin(session: JellyfinSession, ids: string[], de
   for (const list of lists) for (const entry of await jellyfinPlaylistEntries(session, list.id)) held.add(entry.id);
   const wanted = [...new Set(ids)].filter((id) => !held.has(id));
   if (!wanted.length) return;
-  const target = lists.find((l) => l.name === FLAG_MASTER) ?? lists.find((l) => l.name.endsWith(`(${device})`));
-  if (target) {
-    await addToJellyfinPlaylist(session, target.id, wanted);
-    return;
+  for (const target of [lists.find((l) => l.name === FLAG_MASTER), lists.find((l) => l.name.endsWith(`(${device})`))]) {
+    if (!target) continue;
+    try {
+      await addToJellyfinPlaylist(session, target.id, wanted);
+      return;
+    } catch (error) {
+      // A list this profile may see but not change (not shared with it yet): the flags go into another.
+      if (!(error instanceof JellyfinError) || error.kind !== "other") throw error;
+    }
   }
   const two = (n: number): string => String(n).padStart(2, "0");
   const stamp = `${now.getFullYear()}-${two(now.getMonth() + 1)}-${two(now.getDate())} ${two(now.getHours())}:${two(now.getMinutes())}`;
@@ -306,7 +315,7 @@ export async function jellyfinFavorites(session: JellyfinSession): Promise<strin
   const reply = await call<{ Items: Array<{ Id: string }> }>(
     session.base,
     `/Users/${session.userId}/Items?Recursive=true&IncludeItemTypes=Audio&Filters=IsFavorite&Limit=50000`,
-    { token: session.token, timeoutMs: 30_000 },
+    { ...signed(session), timeoutMs: 30_000 },
   );
   return reply.Items.map((item) => item.Id);
 }
@@ -314,7 +323,63 @@ export async function jellyfinFavorites(session: JellyfinSession): Promise<strin
 /** Marks or unmarks a favorite in Jellyfin itself, so it shows in Jellyfin's own apps too. */
 export async function setJellyfinFavorite(session: JellyfinSession, id: string, favorite: boolean): Promise<void> {
   await call(session.base, `/UserFavoriteItems/${encodeURIComponent(id)}?userId=${encodeURIComponent(session.userId)}`, {
-    token: session.token,
+    ...signed(session),
     method: favorite ? "POST" : "DELETE",
   });
+}
+
+// ---- Profiles (D213): users of the server with no password, each with its own favorites, playlists and plays. ----
+
+export type JellyfinUser = { id: string; name: string; admin: boolean; disabled: boolean };
+type UserItem = { Id: string; Name?: string; Policy?: { IsAdministrator?: boolean; IsDisabled?: boolean } };
+const userFrom = (item: UserItem): JellyfinUser => ({ id: item.Id, name: item.Name ?? "", admin: item.Policy?.IsAdministrator === true, disabled: item.Policy?.IsDisabled === true });
+
+/** The profiles of a server: the users it lists before sign-in who are not administrators. */
+export async function jellyfinProfiles(base: string): Promise<JellyfinUser[]> {
+  const listed = await call<UserItem[]>(base, "/Users/Public", { timeoutMs: 6_000 });
+  return listed.map(userFrom).filter((user) => !user.admin && !user.disabled).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/** Signs in to a profile (no password) under a device name of its own, so the TV's other sign-ins stay. */
+export async function signInProfile(server: { base: string; name: string; serverId: string }, name: string): Promise<JellyfinSession> {
+  const own = `${deviceId()}-${Array.from(new TextEncoder().encode(name.toLowerCase()), (b) => b.toString(16).padStart(2, "0")).join("").slice(0, 40)}`;
+  try {
+    const reply = await call<{ AccessToken: string; User: { Id: string } }>(server.base, "/Users/AuthenticateByName", { device: own, method: "POST", body: { Username: name, Pw: "" } });
+    return { base: server.base, name: server.name, serverId: server.serverId, userId: reply.User.Id, token: reply.AccessToken, deviceId: own };
+  } catch (error) {
+    if (error instanceof JellyfinError && error.kind === "signed_out") throw new JellyfinError(`${name} has a password in Jellyfin, so it cannot be used as a profile.`, "other");
+    throw error;
+  }
+}
+
+export async function jellyfinUsers(session: JellyfinSession): Promise<JellyfinUser[]> {
+  return (await call<UserItem[]>(session.base, "/Users", signed(session))).map(userFrom);
+}
+
+/** The calls `shareFlagLists` needs (src/jellyfin-profiles.ts), so every user may check and clear flags. */
+export const flagListClient = {
+  playlists: (session: JellyfinSession) => jellyfinPlaylistList(session),
+  users: (session: JellyfinSession) => jellyfinUsers(session),
+  async playlistAccess(session: JellyfinSession, id: string) {
+    const reply = await call<{ OpenAccess?: boolean; Shares?: Array<{ UserId: string; CanEdit?: boolean }> }>(session.base, `/Playlists/${encodeURIComponent(id)}`, signed(session));
+    return { everyone: reply.OpenAccess === true, shares: (reply.Shares ?? []).map((s) => ({ userId: s.UserId, canEdit: s.CanEdit === true })) };
+  },
+  async setPlaylistAccess(session: JellyfinSession, id: string, access: { shares?: Array<{ userId: string; canEdit: boolean }> }) {
+    await call(session.base, `/Playlists/${encodeURIComponent(id)}`, { ...signed(session), method: "POST", body: { Users: (access.shares ?? []).map((s) => ({ UserId: s.userId, CanEdit: s.canEdit })) } });
+  },
+};
+
+/** Counts a play for the session's user. */
+export async function markJellyfinPlayed(session: JellyfinSession, id: string, at: Date = new Date()): Promise<void> {
+  await call(session.base, `/UserPlayedItems/${encodeURIComponent(id)}?userId=${encodeURIComponent(session.userId)}&datePlayed=${encodeURIComponent(at.toISOString())}`, { ...signed(session), method: "POST" });
+}
+
+/** The songs this user played, newest first. */
+export async function jellyfinRecentlyPlayed(session: JellyfinSession, limit = 100): Promise<string[]> {
+  const reply = await call<{ Items: Array<{ Id: string }> }>(
+    session.base,
+    `/Users/${session.userId}/Items?Recursive=true&IncludeItemTypes=Audio&Filters=IsPlayed&SortBy=DatePlayed&SortOrder=Descending&Limit=${limit}`,
+    { ...signed(session), timeoutMs: 30_000 },
+  );
+  return reply.Items.map((item) => item.Id);
 }

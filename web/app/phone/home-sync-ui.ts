@@ -1,7 +1,8 @@
 // The phone's "Home server" screens and the round that keeps chosen music in step with the home Jellyfin server (owner, 2026-11-23, D177): choose artists, albums or
 // playlists (or everything) to keep, press Sync now (or let it happen when the phone is home on Wi-Fi), and the music is fetched into the phone's Music folder, edits made on
 // the server come down, songs no longer chosen go, flags and playlists are kept in step both ways, and playback is always from the phone's own files. The rules are in
-// home-sync.ts and phone-playlist-sync.ts (tested); this file is the screens and the talking to the app.
+// home-sync.ts and phone-playlist-sync.ts (tested); this file is the screens and the talking to the app. The same
+// screens and round serve a computer running MediaVerse Studio (D214): a second one of these, with its own record.
 
 import { el } from "../src/dom.ts";
 import { authHeader, JellyfinProblem, type Jellyfin, type ServerAlbum, type Session } from "./jellyfin-phone.ts";
@@ -18,6 +19,9 @@ const AUTO = "mediaverse.phone.home-auto";
 const PLAYLIST_STATE = "mediaverse.phone.home-playlists";
 const LAST = "mediaverse.phone.home-last";
 const GUESTS = "mediaverse.phone.home-guest-artists";
+const OVERWRITE = "mediaverse.phone.home-overwrite";
+/** "5 minutes' worth". */
+const CHUNK_MS = 5 * 60_000;
 /** A round on its own (the app coming to the front, the phone getting Wi-Fi) is at most this often. */
 const AUTO_EVERY_MS = 15 * 60_000;
 
@@ -39,9 +43,22 @@ function write(key: string, value: unknown): void {
 
 export type PickLevel = "artists" | "albums" | "playlists";
 
+/** What a round asks of the place the music comes from: the Jellyfin server, or a computer (computer.ts). */
+export type HomeClient = Pick<Jellyfin, "songsFor" | "albumArtists" | "guestArtists" | "albums" | "playlists" | "playlistSongs" | "createPlaylist" | "addToPlaylist" | "removeFromPlaylist" | "deletePlaylist" | "searchSongs"> & {
+  probe: (base: string, timeout?: number) => Promise<unknown>;
+};
+
 export type HomeSyncDeps = {
   bridge: Bridge;
-  jf: Jellyfin;
+  jf: HomeClient;
+  /** Set when the place is a computer, not the Jellyfin server: its own record, wording and way of fetching a song. */
+  computer?: { songRequest: (session: Session, songId: string) => { url: string; headers: Record<string, string> } };
+  /** The phone's ids of songs the other place's record holds: never taken off, or taken for this one's own. */
+  heldElsewhere?: () => Set<string>;
+  /** Whether the other place's round is running (one at a time: both write the same playlists). */
+  otherRunning?: () => boolean;
+  /** Whether playlists are kept in step with this place now (not for a second profile with a computer). */
+  playlistsToo?: () => boolean;
   deviceId: string;
   deviceLabel: string;
   session: () => Session | null;
@@ -72,16 +89,28 @@ export type HomeSync = {
   summary: () => string;
   /** Called when the app comes to the front or the phone gets a network: a round when it is due. */
   autoSoon: () => void;
-  run: () => Promise<void>;
+  /** A round; `chunk`: stop after about five minutes. */
+  run: (chunk?: boolean) => Promise<void>;
   running: () => boolean;
+  /** The playlists alone, both ways (a profile just chosen has them brought over, whatever music is kept). */
+  syncPlaylists: () => Promise<void>;
+  /** The next round joins both sides' playlists and takes nothing off (after pairing: the other side may be new). */
+  forgetAgreements: () => void;
 };
 
 export function createHomeSync(deps: HomeSyncDeps): HomeSync {
-  let choices: Choice[] = (read<unknown[]>(CHOICES, []) as Choice[]).filter((c) => c && typeof c === "object" && ["all", "artist", "appears", "album", "playlist"].includes((c as Choice).kind));
-  let manifest: Manifest = cleanManifest(read<unknown>(MANIFEST, null));
-  let auto = read<boolean>(AUTO, true);
-  let playlistState: PhonePlaylistState = read<PhonePlaylistState>(PLAYLIST_STATE, {});
-  let status = read<string>(LAST, "");
+  /** The record's name in storage, and the ids of requests to the app: apart for each place. */
+  const own = (key: string): string => (deps.computer ? `${key}.computer` : key);
+  const tag = deps.computer ? "c" : "";
+  /** The screens' words were written for the server; for a computer they say so. */
+  const say = (text: string): string => (deps.computer ? text.replace("Sign in again under Settings.", "Pair it again under Settings.").replace(/your Jellyfin server|the home server|your home server|home server/g, (m) => (m.startsWith("your") ? "your computer" : m.startsWith("the") ? "the computer" : "computer")).replace(/\bserver(?=\b|')/g, "computer").replace(/\bServer\b/g, "Computer") : text);
+  const request = (session: Session, songId: string): { url: string; headers: Record<string, string> } =>
+    deps.computer ? deps.computer.songRequest(session, songId) : { url: `${session.base}/Audio/${songId}/stream?static=true`, headers: { Authorization: authHeader(session.deviceId ?? deps.deviceId, deps.deviceLabel, session.token) } };
+  let choices: Choice[] = (read<unknown[]>(own(CHOICES), []) as Choice[]).filter((c) => c && typeof c === "object" && ["all", "artist", "appears", "album", "playlist"].includes((c as Choice).kind));
+  let manifest: Manifest = cleanManifest(read<unknown>(own(MANIFEST), null));
+  let auto = read<boolean>(own(AUTO), true);
+  let playlistState: PhonePlaylistState = read<PhonePlaylistState>(own(PLAYLIST_STATE), {});
+  let status = read<string>(own(LAST), "");
   let running = false;
   let cancelled = false;
   let lastRun = 0;
@@ -92,12 +121,31 @@ export function createHomeSync(deps: HomeSyncDeps): HomeSync {
   let networkAnswer: ((message: { wifi: boolean; metered: boolean }) => void) | null = null;
   const waitingFingerprint = new Map<string, (same: boolean | null) => void>();
   const waitingWrite = new Map<string, (ok: boolean) => void>();
+  const waitingMove = new Map<string, (answer: { moved: number; failed: number; needPermission: string[] }) => void>();
+  let overwrite = read<boolean>(own(OVERWRITE), false);
+  let bar: HTMLProgressElement | null = null;
+  let progressAt: { done: number; total: number; bytes: number; totalBytes: number; since: number } | null = null;
+  const paintBar = (): void => {
+    if (!bar) return;
+    bar.hidden = !running;
+    if (progressAt?.total) {
+      bar.max = progressAt.total;
+      bar.value = progressAt.done;
+    } else bar.removeAttribute("value");
+  };
+  /** "About 12 minutes left", once there is enough to judge by. */
+  const timeLeft = (): string => {
+    const at = progressAt;
+    if (!at || at.bytes <= 0 || Date.now() - at.since < 10_000) return "";
+    const minutes = Math.round(((Date.now() - at.since) / at.bytes) * (at.totalBytes - at.bytes) / 60_000);
+    return minutes < 1 ? " · under a minute left" : ` · about ${minutes} minute${minutes === 1 ? "" : "s"} left`;
+  };
 
-  const saveChoices = (): void => write(CHOICES, choices);
+  const saveChoices = (): void => write(own(CHOICES), choices);
   const setStatus = (text: string, remember = false): void => {
-    status = text;
-    if (remember) write(LAST, text);
-    if (statusLine?.isConnected) statusLine.textContent = text;
+    status = say(text);
+    if (remember) write(own(LAST), status);
+    if (statusLine?.isConnected) statusLine.textContent = status;
   };
   const chosen = (choice: Choice): boolean => choices.some((c) => choiceKey(c) === choiceKey(choice));
 
@@ -127,6 +175,11 @@ export function createHomeSync(deps: HomeSyncDeps): HomeSync {
     } else if (message.type === "fingerprint") {
       waitingFingerprint.get(message.id)?.(message.same);
       waitingFingerprint.delete(message.id);
+    } else if (message.type === "movedToRoot") {
+      waitingMove.get(message.id)?.(message);
+      waitingMove.delete(message.id);
+    } else if (message.type === "moveProgress") {
+      setStatus(`Moving songs into the Music folder (${message.done} of ${message.total})`);
     } else if (message.type === "writeGranted") {
       waitingWrite.get(message.id)?.(message.ok);
       waitingWrite.delete(message.id);
@@ -149,13 +202,35 @@ export function createHomeSync(deps: HomeSyncDeps): HomeSync {
   /** Whether the phone's copy of a song is the same file as the server's, by a fingerprint of the head and tail of both; null when it could not be told. */
   function sameFile(session: Session, song: SyncSong, localId: string): Promise<boolean | null> {
     return new Promise((resolve) => {
-      const id = `fp${++counter}`;
+      const id = `${tag}fp${++counter}`;
       const timer = window.setTimeout(() => {
         if (waitingFingerprint.delete(id)) resolve(null);
       }, 45_000);
       waitingFingerprint.set(id, (same) => (window.clearTimeout(timer), resolve(same)));
-      deps.bridge.send({ type: "fingerprint", id, url: `${session.base}/Audio/${song.id}/stream?static=true`, headers: { Authorization: authHeader(deps.deviceId, deps.deviceLabel, session.token) }, localId, size: song.size });
+      deps.bridge.send({ type: "fingerprint", id, ...request(session, song.id), localId, size: song.size });
     });
+  }
+
+  /** Songs earlier versions put in "Music/MediaVerse Home" are moved up into the Music folder; answers what to say about it. */
+  async function moveToRoot(): Promise<string> {
+    const ask = (): Promise<{ moved: number; failed: number; needPermission: string[] }> =>
+      new Promise((resolve) => {
+        const id = `${tag}mv${++counter}`;
+        const timer = window.setTimeout(() => {
+          if (waitingMove.delete(id)) resolve({ moved: 0, failed: 0, needPermission: [] });
+        }, 10 * 60_000);
+        waitingMove.set(id, (answer) => (window.clearTimeout(timer), resolve(answer)));
+        deps.bridge.send({ type: "moveToRoot", id });
+      });
+    let answer = await ask();
+    let moved = answer.moved;
+    if (answer.needPermission.length && (await grantWrite(answer.needPermission)).size) {
+      answer = await ask();
+      moved += answer.moved;
+    }
+    if (moved) await deps.reloadLibrary();
+    const parts = [moved ? `${moved} song${moved === 1 ? "" : "s"} moved into the Music folder.` : "", answer.failed ? `${answer.failed} could not be moved and are still in Music/MediaVerse Home.` : ""];
+    return parts.filter(Boolean).join(" ");
   }
 
   /** Android's one-time permission to update these songs in place (one prompt per 200 songs); the ids it was given for. */
@@ -164,7 +239,7 @@ export function createHomeSync(deps: HomeSyncDeps): HomeSync {
     for (let i = 0; i < ids.length; i += 200) {
       const part = ids.slice(i, i + 200);
       const ok = await new Promise<boolean>((resolve) => {
-        const id = `gw${++counter}`;
+        const id = `${tag}gw${++counter}`;
         waitingWrite.set(id, resolve);
         deps.bridge.send({ type: "grantWrite", id, ids: part });
         window.setTimeout(() => {
@@ -178,18 +253,26 @@ export function createHomeSync(deps: HomeSyncDeps): HomeSync {
 
   function download(session: Session, song: SyncSong, path: string, replace: string | null, inPlace: boolean, label: (fraction: number) => void): Promise<{ mediaId: string; bytes: number }> {
     return new Promise((resolve, reject) => {
-      const id = `dl${++counter}`;
+      const id = `${tag}dl${++counter}`;
       const timer = window.setTimeout(() => {
         if (waiting.delete(id)) reject(new Error("The song took too long."));
       }, 10 * 60_000);
       waiting.set(id, { resolve: (v) => (window.clearTimeout(timer), resolve(v)), reject: (e) => (window.clearTimeout(timer), reject(e)), progress: label });
-      deps.bridge.send({ type: "download", id, url: `${session.base}/Audio/${song.id}/stream?static=true`, headers: { Authorization: authHeader(deps.deviceId, deps.deviceLabel, session.token) }, path, replace, inPlace });
+      deps.bridge.send({ type: "download", id, ...request(session, song.id), path, replace, inPlace });
     });
   }
 
-  function removeLocal(ids: string[]): Promise<string[]> {
+  async function removeLocal(ids: string[]): Promise<string[]> {
+    // A song the other place also keeps stays on the phone; this place only stops counting it.
+    const held = deps.heldElsewhere?.() ?? new Set<string>();
+    const keep = ids.filter((id) => held.has(id));
+    const go = ids.filter((id) => !held.has(id));
+    return [...keep, ...(go.length ? await takeOff(go) : [])];
+  }
+
+  function takeOff(ids: string[]): Promise<string[]> {
     return new Promise((resolve) => {
-      const id = `rm${++counter}`;
+      const id = `${tag}rm${++counter}`;
       waitingDelete.set(id, resolve);
       deps.bridge.send({ type: "deleteLocal", id, ids });
       window.setTimeout(() => {
@@ -200,15 +283,24 @@ export function createHomeSync(deps: HomeSyncDeps): HomeSync {
 
   const sourceOf = (choice: Choice): { kind: "all" | "artist" | "appears" | "album" | "playlist"; id?: string } => (choice.kind === "all" ? { kind: "all" } : { kind: choice.kind, id: choice.id });
 
-  async function run(): Promise<void> {
+  /** `chunk`: five minutes' worth; `byHand`: the person pressed it, so the screen stays on until it ends. */
+  async function run(chunk = false, byHand = false): Promise<void> {
     const session = deps.session();
     if (!session || running) return;
+    if (deps.otherRunning?.()) {
+      setStatus("The other sync is running. Try again when it has finished.");
+      deps.changed();
+      return;
+    }
     running = true;
     cancelled = false;
     lastRun = Date.now();
+    progressAt = null;
+    if (byHand) deps.bridge.send({ type: "keepScreenOn", on: true });
     setStatus("Looking for the home server…");
     deps.changed();
     try {
+      const tidied = await moveToRoot();
       const net = await askNetwork();
       if (!net.wifi) {
         setStatus("Not on Wi-Fi. Music is kept in step when the phone is on your home Wi-Fi.", true);
@@ -219,6 +311,7 @@ export function createHomeSync(deps: HomeSyncDeps): HomeSync {
         return;
       }
       let message = "";
+      const deadline = Date.now() + CHUNK_MS;
       if (choices.length) {
         await deps.reloadLibrary(); // what is really on the phone now (a song the person deleted is fetched again)
         const io: SyncIo = {
@@ -226,14 +319,15 @@ export function createHomeSync(deps: HomeSyncDeps): HomeSync {
           manifest,
           saveManifest: (m) => {
             manifest = m;
-            write(MANIFEST, m);
+            write(own(MANIFEST), m);
           },
           present: () => (deps.libraryLoaded() ? new Set(deps.tracks().map((t) => t.id)) : null),
           download: (song, path, replace, inPlace) => download(session, song, path, replace, inPlace, (fraction) => setStatus(`${status.replace(/ \(\d+%\)$/, "")} (${Math.round(fraction * 100)}%)`)),
           grantWrite,
           adopt: async (songs) => {
             // Songs on the phone are matched to the server's by name, album, length and size; those the same size are confirmed by comparing a fingerprint of the file.
-            const locals: LocalSong[] = deps.tracks().map((t) => ({ id: t.id, title: t.title, artist: t.artist ?? "", albumArtist: t.album_artist ?? "", album: t.album ?? "", folder: t.cover_key ?? "", file: t.file ?? "", size: t.size ?? 0, durationMs: t.duration_ms }));
+            const held = deps.heldElsewhere?.() ?? new Set<string>();
+            const locals: LocalSong[] = deps.tracks().map((t) => ({ id: t.id, title: t.title, artist: t.artist ?? "", albumArtist: t.album_artist ?? "", album: t.album ?? "", folder: t.cover_key ?? "", file: t.file ?? "", size: t.size ?? 0, durationMs: t.duration_ms, own: t.own === true && !held.has(t.id) }));
             const taken = new Set(Object.values(manifest.files).flatMap((f) => (f.mediaId ? [f.mediaId] : [])));
             const found = findAdoptions(songs, locals, taken);
             let checked = 0;
@@ -247,7 +341,13 @@ export function createHomeSync(deps: HomeSyncDeps): HomeSync {
             return found.map((pair) => ({ song: pair.song, local: pair.local, level: pair.level }));
           },
           removeLocal,
-          progress: (text) => setStatus(text),
+          overwrite,
+          timeUp: chunk ? () => Date.now() >= deadline : undefined,
+          count: (done, total, bytes, totalBytes) => {
+            progressAt = { done, total, bytes, totalBytes, since: progressAt?.since ?? Date.now() };
+            paintBar();
+          },
+          progress: (text) => setStatus(`${text}${text.startsWith("Downloading") ? timeLeft() : ""}`),
           cancelled: () => cancelled,
           now: () => Date.now(),
         };
@@ -257,21 +357,16 @@ export function createHomeSync(deps: HomeSyncDeps): HomeSync {
           deps.setFlags(deps.flags().map((f) => (outcome.moved[f.id] ? { ...f, id: outcome.moved[f.id]! } : f)));
           deps.setPlaylists(deps.playlists().map((p) => ({ ...p, entries: p.entries.map((e) => (outcome.moved[e.id] ? { ...e, id: outcome.moved[e.id]! } : e)) })));
         }
-        message = describeOutcome(outcome);
+        message = `${tidied ? `${tidied} ` : ""}${describeOutcome(outcome)}`;
         if (outcome.downloaded || outcome.updated || outcome.removed) await deps.reloadLibrary();
         if (outcome.cancelled) {
           setStatus(message, true);
           return;
         }
-      } else message = "Nothing is chosen to keep yet.";
+      } else message = `${tidied ? `${tidied} ` : ""}Nothing is chosen to keep yet.`;
       setStatus(`${message} Syncing flags and playlists…`);
       await deps.runFlagSync();
-      const library = deps.tracks().map((t) => ({ id: t.id, title: t.title, artist: t.artist, album_artist: t.album_artist, album: t.album, duration_ms: t.duration_ms }));
-      const result = await syncPhonePlaylists({ client: deps.jf, session, playlists: deps.playlists(), library, manifest, state: playlistState, now: Date.now(), newId: () => `p${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}` });
-      playlistState = result.state;
-      write(PLAYLIST_STATE, playlistState);
-      deps.setPlaylists(result.playlists);
-      const playlistText = describePlaylistReport(result.report);
+      const playlistText = deps.playlistsToo?.() === false ? "" : await playlistRound(session);
       setStatus(`${message}${playlistText ? ` ${playlistText}` : ""}`, true);
     } catch (error) {
       if (error instanceof JellyfinProblem && error.kind === "signed_out") setStatus("The server no longer accepts this phone. Sign in again under Settings.", true);
@@ -279,14 +374,45 @@ export function createHomeSync(deps: HomeSyncDeps): HomeSync {
       else setStatus(error instanceof Error ? error.message : "Syncing did not work.", true);
     } finally {
       running = false;
+      progressAt = null;
+      if (byHand) deps.bridge.send({ type: "keepScreenOn", on: false });
+      deps.changed();
+    }
+  }
+
+  /** One round of the playlists; returns what to tell. */
+  async function playlistRound(session: Session): Promise<string> {
+    const library = deps.tracks().map((t) => ({ id: t.id, title: t.title, artist: t.artist, album_artist: t.album_artist, album: t.album, duration_ms: t.duration_ms }));
+    const result = await syncPhonePlaylists({ client: deps.jf, session, playlists: deps.playlists(), library, manifest, state: playlistState, now: Date.now(), newId: () => `p${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}` });
+    playlistState = result.state;
+    write(own(PLAYLIST_STATE), playlistState);
+    deps.setPlaylists(result.playlists);
+    return describePlaylistReport(result.report);
+  }
+
+  async function syncPlaylists(): Promise<void> {
+    const session = deps.session();
+    // Not before the phone's music is read: with nothing to match against, nothing is decided. A full round does this itself.
+    if (!session || running || deps.otherRunning?.() || !deps.libraryLoaded() || !deps.tracks().length) return;
+    running = true;
+    try {
+      await playlistRound(session);
+    } finally {
+      running = false;
       deps.changed();
     }
   }
 
   function autoSoon(): void {
-    if (!auto || !choices.length || running || !deps.session() || Date.now() - lastRun < AUTO_EVERY_MS) return;
+    // With a computer, hearts, flags and playlists are worth a round even with no music chosen.
+    if (!auto || (!choices.length && !deps.computer) || running || !deps.session() || Date.now() - lastRun < AUTO_EVERY_MS) return;
     lastRun = Date.now();
-    window.setTimeout(() => void run(), 4_000);
+    // Behind the other place's round when one is going: tried again a minute later.
+    const start = (): void => {
+      if (deps.otherRunning?.()) window.setTimeout(start, 60_000);
+      else void run();
+    };
+    window.setTimeout(start, 4_000);
   }
 
   const kept = (): { songs: number; bytes: number } => {
@@ -295,7 +421,7 @@ export function createHomeSync(deps: HomeSyncDeps): HomeSync {
   };
 
   function summary(): string {
-    if (!deps.session()) return "Sign in to your Jellyfin server first.";
+    if (!deps.session()) return say("Sign in to your Jellyfin server first.");
     if (!choices.length) return "Choose artists, albums or playlists to keep on this phone.";
     const k = kept();
     return `${choices.length} chosen · ${k.songs} song${k.songs === 1 ? "" : "s"} fetched${k.bytes ? ` (${sizeText(k.bytes)})` : ""}`;
@@ -325,7 +451,7 @@ export function createHomeSync(deps: HomeSyncDeps): HomeSync {
 
   function renderHome(into: HTMLElement): void {
     const box = el("div", "settings home-sync");
-    box.append(el("h2", "section", "Music from your home server"));
+    box.append(el("h2", "section", say("Music from your home server")));
     if (!deps.session()) {
       box.append(el("p", "hint", "Keep chosen music from your Jellyfin server on this phone, much as a cloud-storage app keeps chosen folders on a computer. Songs play from the phone's own files, so they work anywhere; when you are home on Wi-Fi, new and edited songs come down and your flags and playlists go up."));
       box.append(el("p", "hint", "Sign in to your Jellyfin server first (Settings, under Jellyfin server)."));
@@ -337,22 +463,41 @@ export function createHomeSync(deps: HomeSyncDeps): HomeSync {
       return;
     }
     const session = deps.session()!;
-    box.append(el("p", "hint", `Connected to ${session.name}. Chosen music is kept on this phone and played from here; edits made on the server (tags, covers, lyrics) come down at the next sync, and songs you stop keeping are taken off. Playlists and flags are kept in step both ways.`));
+    box.append(el("p", "hint", `Connected to ${session.name}. ${say("Chosen music is kept on this phone and played from here; edits made on the server (tags, covers, lyrics) come down at the next sync, and songs you stop keeping are taken off.")} ${deps.computer ? "Favorites, flags and playlists are kept in step both ways." : "Playlists and flags are kept in step both ways."}`));
     statusLine = el("p", "hint", status || "Ready.");
     statusLine.setAttribute("role", "status");
-    const sync = el("button", "primary", running ? "Stop" : "Sync now");
+    const sync = el("button", "primary", running ? "Stop" : "Sync everything");
     sync.type = "button";
     sync.addEventListener("click", () => {
       if (running) {
         cancelled = true;
         sync.disabled = true;
         setStatus("Stopping after this song…");
-      } else void run();
+      } else void run(false, true);
     });
-    box.append(sync, statusLine);
-    box.append(switchRow("Sync when I get home", "When the app opens or the phone joins Wi-Fi, at most every 15 minutes. Only on Wi-Fi, only with the home server.", auto, () => {
+    box.append(sync);
+    if (!running) {
+      const part = el("button", "secondary", "Sync 5 minutes' worth");
+      part.type = "button";
+      part.addEventListener("click", () => void run(true, true));
+      box.append(part);
+    }
+    bar = el("progress", "sync-progress");
+    paintBar();
+    box.append(bar, statusLine);
+    box.append(el("p", "hint", "A sync you start keeps the screen on until it ends; leave the app open and the phone charging for a large one."));
+    box.append(switchRow("Replace phone copies with the library's versions", say("When a song on this phone differs from the server's (new artwork or tags, say), including one you copied on yourself, the server's version is written over it. Android asks your permission. Off: your own copies that differ are left as they are."), overwrite, () => {
+      const turn = (on: boolean): void => {
+        overwrite = on;
+        write(own(OVERWRITE), on);
+        deps.changed();
+      };
+      if (overwrite) turn(false);
+      else deps.confirm("Replace songs on this phone that differ from the library's? The phone's versions of those songs are overwritten and cannot be brought back from this app.", "Replace them", () => turn(true));
+    }));
+    box.append(switchRow("Sync when I get home", say("When the app opens or the phone joins Wi-Fi, at most every 15 minutes. Only on Wi-Fi, only with the home server."), auto, () => {
       auto = !auto;
-      write(AUTO, auto);
+      write(own(AUTO), auto);
       deps.changed();
     }));
 
@@ -377,18 +522,18 @@ export function createHomeSync(deps: HomeSyncDeps): HomeSync {
     }
     const k = kept();
     const mine = Object.values(manifest.files).filter((f) => f.adopted).length;
-    if (k.songs) box.append(el("p", "hint", `${k.songs} song${k.songs === 1 ? "" : "s"} kept in step with the server (${sizeText(k.bytes)})${mine ? `: ${mine} you already had on the phone, the rest fetched into Music/MediaVerse Home` : ", in Music/MediaVerse Home"}.`));
+    if (k.songs) box.append(el("p", "hint", say(`${k.songs} song${k.songs === 1 ? "" : "s"} kept in step with the server (${sizeText(k.bytes)})${mine ? `: ${mine} you already had on the phone, the rest fetched into the Music folder` : ", in the Music folder"}.`)));
     const held = Object.values(manifest.files).filter((f) => f.hold);
     if (held.length) {
-      box.append(el("h2", "section", "Different from the server"));
-      box.append(el("p", "hint", `${held.length} song${held.length === 1 ? " on the phone is" : "s on the phone are"} the same song as on the server but not the same file (another tag, bitrate or rip), so ${held.length === 1 ? "it was" : "they were"} left as ${held.length === 1 ? "it is" : "they are"}: ${held.slice(0, 3).map((f) => f.title).join(", ")}${held.length > 3 ? ", …" : ""}.`));
-      const use = el("button", "secondary", "Use the server's versions");
+      box.append(el("h2", "section", say("Different from the server")));
+      box.append(el("p", "hint", `${say(`${held.length} song${held.length === 1 ? " on the phone is" : "s on the phone are"} the same song as on the server but not the same file (another tag, bitrate or rip), so ${held.length === 1 ? "it was" : "they were"} left as ${held.length === 1 ? "it is" : "they are"}:`)} ${held.slice(0, 3).map((f) => f.title).join(", ")}${held.length > 3 ? ", …" : ""}.`));
+      const use = el("button", "secondary", say("Use the server's versions"));
       use.type = "button";
       use.addEventListener("click", () =>
-        deps.confirm(`Replace ${held.length} song${held.length === 1 ? "" : "s"} on the phone with the server's version? Android asks for permission once; the songs keep their hearts and playlists.`, "Replace them", () => {
+        deps.confirm(say(`Replace ${held.length} song${held.length === 1 ? "" : "s"} on the phone with the server's version? Android asks for permission once; the songs keep their hearts and playlists.`), "Replace them", () => {
           useServerVersions(manifest);
-          write(MANIFEST, manifest);
-          void run();
+          write(own(MANIFEST), manifest);
+          void run(false, true);
         }),
       );
       box.append(use);
@@ -399,7 +544,7 @@ export function createHomeSync(deps: HomeSyncDeps): HomeSync {
     box.append(linkRow("Albums", "Pick single albums", () => deps.openPick("albums")));
     box.append(linkRow("Playlists", "A playlist's songs, kept in step with it", () => deps.openPick("playlists")));
     box.append(
-      switchRow("The whole library", "Everything on the server. Check there is room on the phone first.", chosen({ kind: "all" }), () => {
+      switchRow("The whole library", say("Everything on the server. Check there is room on the phone first."), chosen({ kind: "all" }), () => {
         if (chosen({ kind: "all" })) {
           toggle({ kind: "all" });
           deps.changed();
@@ -423,7 +568,7 @@ export function createHomeSync(deps: HomeSyncDeps): HomeSync {
     const title = level === "artists" ? "Choose artists" : level === "playlists" ? "Choose playlists" : artist ? `Albums by ${artist.name}` : "Choose albums";
     box.append(el("h2", "section", title));
     if (!session) {
-      box.append(el("p", "hint", "Sign in to your Jellyfin server first."));
+      box.append(el("p", "hint", say("Sign in to your Jellyfin server first.")));
       into.append(box);
       return;
     }
@@ -448,7 +593,7 @@ export function createHomeSync(deps: HomeSyncDeps): HomeSync {
       guestBox.append(tick, el("span", "", "Also list artists who only appear on other artists' albums (compilations, guest spots)"));
     }
     const list = el("div", "pick-list");
-    const note = el("p", "hint", "Asking the server…");
+    const note = el("p", "hint", say("Asking the server…"));
     box.append(search);
     if (guestBox) box.append(guestBox);
     box.append(note, list);
@@ -508,7 +653,7 @@ export function createHomeSync(deps: HomeSyncDeps): HomeSync {
     search.addEventListener("input", draw);
     const load = async (): Promise<void> => {
       try {
-        note.textContent = "Asking the server…";
+        note.textContent = say("Asking the server…");
         if (level === "artists") {
           const found = await deps.jf.albumArtists(session);
           items = found.map((a) => ({ choice: { kind: "artist", id: a.id, name: a.name } as Choice, label: a.name, sub: "", drill: { id: a.id, name: a.name } }));
@@ -531,13 +676,18 @@ export function createHomeSync(deps: HomeSyncDeps): HomeSync {
         }
         draw();
       } catch (error) {
-        note.textContent = error instanceof JellyfinProblem ? error.message : "The server did not answer. Connect to your home Wi-Fi and try again.";
+        note.textContent = error instanceof JellyfinProblem ? error.message : say("The server did not answer. Connect to your home Wi-Fi and try again.");
       }
     };
     void load();
   }
 
-  return { onNative, renderHome, renderPick, summary, autoSoon, run, running: () => running };
+  const forgetAgreements = (): void => {
+    playlistState = {};
+    write(own(PLAYLIST_STATE), playlistState);
+  };
+
+  return { onNative, renderHome, renderPick, summary, syncPlaylists, forgetAgreements, autoSoon, run: (chunk) => run(chunk), running: () => running };
 }
 
 export { emptyManifest };

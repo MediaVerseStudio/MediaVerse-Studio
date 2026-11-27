@@ -19,13 +19,12 @@ export type LocalSong = {
   file: string;
   size: number;
   durationMs: number;
+  /** Whether the program created this file (it fetched it before): such a song is its own to replace or take off. */
+  own?: boolean;
 };
 
 export type Adoption = { song: SyncSong; local: LocalSong; level: "exact" | "differs"; score: number };
 
-/** The folder the program puts songs it fetched itself in: songs there are ours (and may be deleted); songs anywhere else are the person's own. */
-export const OWN_FOLDER = "Music/MediaVerse Home/";
-export const isOwnFolder = (folder: string): boolean => folder.replace(/\\/g, "/").startsWith(OWN_FOLDER);
 
 /** The least score that makes two songs the same: the same title and artist (20) plus enough else (the length and album, or the size). */
 export const THRESHOLD = 55;

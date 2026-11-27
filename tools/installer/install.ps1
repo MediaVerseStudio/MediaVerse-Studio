@@ -75,7 +75,7 @@ try {
     New-Item -ItemType Directory -Force (Split-Path $startMenu -Parent) | Out-Null
     Shortcut $startMenu $exe $InstallDir
 
-    $version = "0.9.0"
+    $version = "0.9.1"
     $packageFile = Join-Path $InstallDir "resources\app\package.json"
     if (Test-Path $packageFile) { $version = (Get-Content $packageFile -Raw | ConvertFrom-Json).version }
     $size = [int]((Get-ChildItem $InstallDir -Recurse -File | Measure-Object Length -Sum).Sum / 1KB)

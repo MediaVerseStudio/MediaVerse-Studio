@@ -65,6 +65,9 @@ true before it is done. Items marked **(owner)** need a decision or an approval 
 - TV and casting: the Den TV "no capability tags" test; the Living Room Amp; PC casting to the S95Fs; gapless casting; PC cast volume, seek, shuffle, repeat.
 - **(owner)** Publish the MediaVerse Google Cast receiver (small fee, Google account) so any Cast device gets the lyrics page; later the Samsung and Google Play stores.
 
+- **New-user setup wizard (owner, 2026-11-26; later):** on first run, on the PC and the phone, set up the library
+  (music folder), then find a Jellyfin server on the home network if there is one, sign in and choose what to sync.
+
 ### Step 5: platforms and distribution (see `docs/distribution-plan.md`, `docs/linux-plan.md`)
 - **Windows, two downloads:** without a model, and with the music-lyrics model included; Whisper (about 1.6 GB) stays a separate download.
 - **Signing:** apply to the SignPath Foundation when the repository goes public (D137); the Microsoft Store (MSIX) as a second channel later.

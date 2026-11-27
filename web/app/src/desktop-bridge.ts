@@ -14,11 +14,13 @@ export type ShareStatus = {
   port: number;
   addresses: string[];
   /** TVs paired with this computer. */
-  devices: { id: string; name: string; paired: string | null }[];
-  /** A TV asking to pair right now, with the one-time code to type on it. */
-  pairing: { name: string; code: string; expires: number } | null;
-  /** True after Pair a TV, until a TV asks or the wait runs out. */
+  devices: { id: string; name: string; paired: string | null; phone?: boolean }[];
+  /** A TV or phone asking to pair right now, with the one-time code to type on it. */
+  pairing: { name: string; code: string; expires: number; phone?: boolean } | null;
+  /** True after Pair a TV or phone, until one asks or the wait runs out. */
   pairing_armed?: boolean;
+  /** Whether paired phones may send new music to this computer (D214). */
+  uploads?: boolean;
 };
 
 export type RemoteDevice = { id: string; name: string; state: { path: string | null; playing: boolean; position_ms: number; duration_ms: number; at: number } | null };
@@ -58,6 +60,8 @@ type ElectronBridge = {
   /** Opens MusicBrainz's Add Release form, pre-filled, in the person's browser (D107). */
   musicbrainzAddRelease?(release: MusicBrainzRelease): Promise<{ ok: boolean; message?: string }>;
   showInFolder?(filePath: string): Promise<boolean>;
+  /** Holds off the computer's sleep while a long job runs (D206). */
+  keepAwake?(on: boolean): Promise<boolean>;
   /** Settings > About (D88): version and whether the licences folder is there. */
   about?(): Promise<AboutInfo>;
   /** Opens the licences folder (licence texts, notices, how to get the source) in Explorer. */
@@ -82,6 +86,8 @@ type ElectronBridge = {
     cancelPairing(): Promise<ShareStatus>;
     /** Lets a TV ask to pair for a few minutes. Pairing does not start from the TV alone. */
     armPairing(): Promise<ShareStatus>;
+    setUploads?(allowed: boolean): Promise<ShareStatus>;
+    openIncoming?(): Promise<boolean>;
     /** Windows Firewall: whether TVs on the connected network are turned away. */
     firewallCheck?(): Promise<{ blocked: boolean; categories: string[] }>;
     /** Adds the narrow rule through Windows' administrator prompt; true when TVs can reach this computer after it. */
@@ -190,6 +196,13 @@ export function open(options: {
 
 export async function choosePictures(title?: string): Promise<string[]> {
   return electronBridge?.choosePictures ? electronBridge.choosePictures(title) : [];
+}
+
+let awakeAskers = 0;
+/** Holds off sleep while at least one job asked for it. */
+export async function keepAwake(on: boolean): Promise<boolean> {
+  awakeAskers = Math.max(0, awakeAskers + (on ? 1 : -1));
+  return electronBridge?.keepAwake ? electronBridge.keepAwake(awakeAskers > 0) : false;
 }
 
 export async function aboutInfo(): Promise<AboutInfo | null> {

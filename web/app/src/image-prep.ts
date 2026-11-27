@@ -55,6 +55,22 @@ export async function prepareImage(source: Blob, options: { square?: boolean } =
   return { base64: await blobToBase64(blob), previewUrl: URL.createObjectURL(blob), width: canvas.width, height: canvas.height, bytes: blob.size };
 }
 
+/** The largest picture the tag writer takes. */
+const MAX_SONG_BYTES = 500 * 1024;
+
+/** A picture as it may go inside a song (base64): as it is when it is already a JPEG within 1000 pixels and the size
+ * limit, else made into one. Every picture copied from somewhere else goes through this. */
+export async function fitForSong(source: Blob): Promise<string> {
+  const start = new Uint8Array(await source.slice(0, 3).arrayBuffer());
+  if (start[0] === 0xff && start[1] === 0xd8 && start[2] === 0xff && source.size <= MAX_SONG_BYTES) {
+    const size = await imageSize(source);
+    if (Math.max(size.width, size.height) <= PICTURE_LIMITS.maxSide) return blobToBase64(source);
+  }
+  const prepared = await prepareImage(source);
+  URL.revokeObjectURL(prepared.previewUrl);
+  return prepared.base64;
+}
+
 /**
  * The full-size copy kept in the album folder (owner, 2026-11-05): a JPEG as it is; anything else (a pasted picture
  * arrives as PNG) as a high-quality JPEG at its own size; cropped to the centred square when asked.

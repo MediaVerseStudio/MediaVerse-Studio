@@ -4,10 +4,10 @@
 // when every line has a time) or reject the candidate and try the next one. All text is set with textContent.
 
 import { el } from "./dom";
-import { invoke } from "./desktop-bridge";
+import { invoke, openExternal } from "./desktop-bridge";
 import { describeError, toApiError } from "./drive-format";
 import { runJob } from "./jobs";
-import { type LyricsLookup, lengthGap, lengthText, lookupSummary, textToUse, yourSong } from "./lyrics-lookup-format";
+import { type LyricsLookup, lengthGap, lengthText, lookupSummary, lyricsWebSearchUrl, textToUse, yourSong } from "./lyrics-lookup-format";
 import type { FileResult } from "./media-request";
 import type { PlayableTrack } from "./play-queue";
 import { INSTRUMENTAL_QUESTION, flagInstrumental } from "./instrumental-flag";
@@ -38,26 +38,26 @@ export type LyricsReviewDeps = {
 export type ExtraRow = { path: string; title: string | null; artist: string | null; album: string | null };
 
 type ListItem = { key: string; path: string; title: string | null; artist: string | null; album: string | null; duration: number | null; cover_of?: string | null; candidates: ReviewCandidate[] };
-type FullCandidate = ReviewCandidate & { plain: string | null; synced: string | null };
+/** `lines`: what the person changed in this candidate, kept while another one is shown. */
+type FullCandidate = ReviewCandidate & { plain: string | null; synced: string | null; lines?: SyncLine[] };
 type Entry = Omit<ListItem, "candidates"> & { candidates: FullCandidate[] };
 
 const SHIFT_MS = 500;
 const PAGE = 100;
 
-/** The lyrics a song has now, as the one candidate the editor starts from. When they are the song's own words (its tag), approving only the timing keeps them as they are. */
-async function ownEntry(item: ListItem): Promise<Entry> {
-  const reply = await invoke<{ plain: string | null; synced: boolean; lines?: { ms: number; text: string }[]; source?: string }>("track_lyrics", { path: item.path }).catch(() => null);
+/** The lyrics a song has now, as a candidate the editor can start from, and where they were found; null when it has none. When they are the song's own words (its tag), approving only the timing keeps them as they are. */
+async function ownCandidate(item: ListItem): Promise<{ candidate: FullCandidate; inSong: boolean } | null> {
+  const reply = await invoke<{ plain: string | null; synced: boolean; lines?: { ms: number; text: string }[]; source?: string }>("track_lyrics", { path: item.path });
   const timedLines = reply?.lines ?? [];
-  if (!reply || (!reply.plain?.trim() && timedLines.length === 0)) return { ...item, candidates: [] };
+  if (!reply || (!reply.plain?.trim() && timedLines.length === 0)) return null;
   const synced = reply.synced && timedLines.length > 0 ? timedLines.map((l) => `[${stampText(l.ms)}]${l.text}`).join("\n") : null;
   // What the editor shows: the timed lines, else the words without the band's section labels (those are not sung, so they are not timed).
   const shown = timedLines.length > 0 ? timedLines.map((l) => l.text).join("\n") : withoutLabels(reply.plain);
   return {
-    ...item,
-    candidates: [{ track: item.title, artist: item.artist, album: item.album, duration: item.duration, confidence: 100, synced, plain: shown, source: "file", band_words: reply.source === "tag" }],
+    candidate: { track: item.title, artist: item.artist, album: item.album, duration: item.duration, confidence: 100, synced, plain: shown, source: "file", band_words: reply.source === "tag" },
+    inSong: reply.source === "tag",
   };
 }
-
 const button = (label: string, run: (event: MouseEvent) => void, kind = "secondary", title?: string): HTMLButtonElement => {
   const b = el("button", kind, label);
   b.type = "button";
@@ -184,6 +184,17 @@ export function initLyricsReview(deps: LyricsReviewDeps): {
     const status = el("p", "field-hint");
     const clock = el("span", "sync-clock", "");
     const message = el("p", "field-hint");
+    // Where the words are being looked for, and what came of it.
+    const searched = el("p", "field-hint lyrics-searched");
+    searched.setAttribute("role", "status");
+    // The lines as last shown from a candidate: different lines mean the person has typed or timed something, which nothing arriving later may replace.
+    let asShown = "";
+    const touched = (): boolean => lines.some((l) => l.text.trim() !== "") && (entry?.candidates[choice]?.lines !== undefined || JSON.stringify(lines) !== asShown);
+    /** Keeps what was changed in the candidate shown, so choosing another and coming back loses nothing. */
+    function stash(): void {
+      const c = entry?.candidates[choice];
+      if (c && touched()) c.lines = lines.map((l) => ({ ...l }));
+    }
     // The editor works like a word processor (D169): select, copy, cut and paste lines between others, Enter, Backspace, Ctrl+Z, spell checking, and a time with a "now" button on every line.
     const te = createTimingEditor({
       nowMs,
@@ -202,16 +213,21 @@ export function initLyricsReview(deps: LyricsReviewDeps): {
 
     function drawStatus(): void {
       const { timed, total } = timedCount(lines);
+      if (total === 0) {
+        status.textContent = "Type or paste the words into the box, one line per row.";
+        return;
+      }
       status.textContent =
-        timed === total && total > 0
+        timed === total
           ? `All ${total} lines have a time: saved as time-stamped lyrics. Play the song and press now on any line that is off, as it starts; a line's time plays from just before it.`
           : timed === 0
-            ? `${total} lines without times. Saved as they are (plain words), or play the song and press Tap (or the T key) as each line starts to time them.`
+            ? `${total} line${total === 1 ? "" : "s"} without times. Saved as they are (plain words), or play the song and press Tap (or the T key) as each line starts to time them.`
             : `${timed} of ${total} lines have a time. Tap (or T) times the next one; saved as plain words until every line has a time.`;
     }
 
     /** The editor shows the lines of the candidate: drawn once per candidate; timing a line afterwards changes only that row's time (owner, 2026-11-06). */
     function drawLines(): void {
+      asShown = JSON.stringify(lines);
       te.set(lines);
       drawStatus();
     }
@@ -377,6 +393,7 @@ export function initLyricsReview(deps: LyricsReviewDeps): {
         return;
       }
       message.textContent = "Saving…";
+      const late = window.setTimeout(() => (message.textContent = "Still saving: the app is finishing another task first."), 5000);
       try {
         deps.beforeEdit([item.path]);
         const reply = await invoke<{ results: FileResult[] }>("update_track_media", { paths: [item.path], lyrics: { text: result.text }, ...(keepWords ? { keep_words: true, batch: `review-timing-${Date.now()}` } : {}) });
@@ -395,6 +412,8 @@ export function initLyricsReview(deps: LyricsReviewDeps): {
         reload();
       } catch (thrown) {
         message.textContent = describeError(toApiError(thrown));
+      } finally {
+        window.clearTimeout(late);
       }
     }
 
@@ -432,27 +451,107 @@ export function initLyricsReview(deps: LyricsReviewDeps): {
       }
     }
 
-    async function fill(): Promise<void> {
-      entry = own ? await ownEntry(item) : await invoke<Entry>("get_lyrics_review", { key: item.key });
-      draw();
+    /** Says what is being waited for, with the seconds, until the returned function is called: a wait with nothing moving looks stuck. */
+    function waiting(text: string): () => void {
+      const from = Date.now();
+      const say = (): void => {
+        const seconds = Math.round((Date.now() - from) / 1000);
+        searched.textContent = seconds < 2 ? text : `${text} ${seconds} s. You can type or paste in the box meanwhile.`;
+      };
+      say();
+      const timer = window.setInterval(say, 1000);
+      return () => window.clearInterval(timer);
     }
 
-    /** Looks for lyrics online (LRCLIB). What is found is added to the candidates and the best is shown; nothing is saved until the person saves. */
-    async function searchOnline(): Promise<void> {
-      if (!entry) return;
-      message.textContent = "Asking LRCLIB…";
+    async function fill(): Promise<void> {
+      if (!own) {
+        entry = await invoke<Entry>("get_lyrics_review", { key: item.key });
+        draw();
+        return;
+      }
+      // The editor is up at once; what the song holds, or else what is found online, is added as it arrives (owner, 2026-11-26).
+      entry = { ...item, candidates: [] };
+      draw();
+      const stop = waiting("Looking in the song itself and for a .lrc file beside it…");
+      let before = "Nothing in the song itself or in a .lrc file beside it.";
+      try {
+        const held = await ownCandidate(item);
+        stop();
+        if (held) {
+          const kept = arrived([held.candidate]) === "kept";
+          searched.textContent = `Found ${held.inSong ? "in the song" : "in a file beside the song"}: the lyrics it has now.${kept ? " What you were working on is still shown: choose them in the list above to see them." : ""}`;
+          return;
+        }
+      } catch (thrown) {
+        stop();
+        before = `The song's own lyrics could not be read (${describeError(toApiError(thrown))}).`;
+      }
+      if (!closed()) await searchOnline(false, before);
+    }
+
+    /** The editor was closed (its window stays in the page, shut) or taken away while something was being looked up. */
+    const closed = (): boolean => !box.isConnected || box.closest("dialog")?.open === false;
+
+    /** Adds suggestions that arrived. With nothing typed yet the first of them is shown; otherwise what the person has stays on screen. */
+    function arrived(found: FullCandidate[]): "shown" | "kept" {
+      if (!entry) return "kept";
+      if (!touched()) {
+        choice = entry.candidates.length;
+        entry.candidates.push(...found);
+        draw();
+        return "shown";
+      }
+      if (entry.candidates[choice]) stash();
+      else {
+        entry.candidates.push({ track: item.title, artist: item.artist, album: item.album, duration: item.duration, confidence: 100, synced: null, plain: null, source: "yours", lines: lines.map((l) => ({ ...l })) });
+        choice = entry.candidates.length - 1;
+      }
+      entry.candidates.push(...found);
+      redrawAround();
+      return "kept";
+    }
+
+    /** Opens a web search for the words in the person's browser and says how to use it. */
+    async function searchWeb(): Promise<string> {
+      const opened = await openExternal(lyricsWebSearchUrl(item.title ?? "", item.artist, item.album)).catch(() => false);
+      return opened
+        ? "A Google search for the words is open in your browser: copy what you want, paste it into the box and edit it to match the singing."
+        : "The browser could not be opened for a web search.";
+    }
+
+    let searching = false;
+    /**
+     * Looks for lyrics online (LRCLIB). What is found is added to the candidates; nothing is saved until the person saves. With nothing to be had,
+     * a press of the button (`byHand`) opens a web search too. `before`: what was already looked at.
+     */
+    async function searchOnline(byHand: boolean, before = ""): Promise<void> {
+      if (!entry || searching) return;
+      searching = true;
+      const lead = before ? `${before} ` : "";
+      const stop = waiting(`${lead}Asking LRCLIB (lrclib.net)…`);
+      const nothing = async (why: string): Promise<void> => {
+        searched.textContent = `${lead}${why} ${byHand ? await searchWeb() : "Press Search the web, or type or paste the words into the box."}`;
+      };
       try {
         const found = await runJob<LyricsLookup>("lookup_lyrics", { path: item.path, title: item.title ?? "", artist: item.artist ?? "", album: item.album, follow_works: true });
-        const first = entry.candidates.length;
-        for (const c of found.results) {
-          if (textToUse(c) === null) continue;
-          entry.candidates.push({ track: c.track, artist: c.artist, album: c.album, duration: c.duration, confidence: found.via === "exact" ? 90 : 60, synced: c.synced, plain: c.plain, source: "lrclib", other_version: c.other_version, other_artist: c.other_artist });
+        stop();
+        // The window was closed while LRCLIB was thinking: nothing to add to, and no browser to open.
+        if (closed()) return;
+        const usable: FullCandidate[] = found.results.flatMap((c) =>
+          textToUse(c) === null ? [] : [{ track: c.track, artist: c.artist, album: c.album, duration: c.duration, confidence: found.via === "exact" ? 90 : 60, synced: c.synced, plain: c.plain, source: "lrclib", other_version: c.other_version, other_artist: c.other_artist }],
+        );
+        const fresh = usable.filter((c) => !entry?.candidates.some((have) => have.synced === c.synced && have.plain === c.plain));
+        if (usable.length === 0) await nothing(found.results.some((c) => c.instrumental) ? "LRCLIB lists this song as instrumental, with no words." : "LRCLIB has no lyrics for this song.");
+        else if (fresh.length === 0) searched.textContent = `${lead}LRCLIB has nothing more than what is listed above.`;
+        else {
+          const kept = arrived(fresh) === "kept";
+          searched.textContent = `${lead}${lookupSummary(found)}${kept ? " What you were working on is still shown: choose one in the list above to use it." : ""}`;
         }
-        if (entry.candidates.length > first) choice = first;
-        draw();
-        message.textContent = `${yourSong(item.title ?? "Unknown song", item.artist, item.album, found.song_duration)}. ${lookupSummary(found)}`;
       } catch (thrown) {
-        message.textContent = describeError(toApiError(thrown));
+        stop();
+        if (!closed()) await nothing(`LRCLIB could not be asked: ${describeError(toApiError(thrown))}`);
+      } finally {
+        searching = false;
       }
     }
 
@@ -479,6 +578,7 @@ export function initLyricsReview(deps: LyricsReviewDeps): {
      * photo as a separate candidate, and the untimed photo version is listed first (owner, 2026-11-22: "the timing was not applied to the photo version").
      */
     function linesFor(c: FullCandidate): { lines: SyncLine[]; note: string } {
+      if (c.lines) return { lines: c.lines, note: "" };
       const own = linesOf(c.synced, c.plain);
       if (timedCount(own).timed > 0 || !entry) return { lines: own, note: "" };
       const donor = entry.candidates.find((other) => other !== c && other.synced);
@@ -488,11 +588,14 @@ export function initLyricsReview(deps: LyricsReviewDeps): {
       return { lines: taken.lines, note: `${taken.carried} of ${taken.total} lines took their times from the timed candidate (${candidateKind(donor)}). Play the song and check them; press now on any line that has none.` };
     }
 
-    function draw(): void {
-      if (!entry) return;
-      const shown = entry;
+    let headRow: HTMLElement | null = null;
+    let footRow: HTMLElement | null = null;
+
+    /** The row above the words: which candidate is shown. */
+    function topRow(shown: Entry): HTMLElement {
       const chooser = el("select", "sync-choice");
       chooser.setAttribute("aria-label", "Lyrics candidate");
+      chooser.hidden = shown.candidates.length === 0;
       shown.candidates.forEach((c, i) => {
         const gap = lengthGap(c.duration, item.duration);
         const where = [c.album, lengthText(c.duration), gap && gap !== "same length" ? `${gap} than your song` : gap].filter(Boolean).join(", ");
@@ -501,6 +604,8 @@ export function initLyricsReview(deps: LyricsReviewDeps): {
           undefined,
           c.source === "file"
             ? `The lyrics now in the song${c.synced ? " · timed" : " · no times yet"}`
+            : c.source === "yours"
+            ? "Your words, typed or pasted here"
             : `${c.confidence}% · ${c.artist ?? "?"} — ${c.track ?? "?"}${where ? ` (${where})` : ""} · ${candidateKind(c)}${c.synced ? " · timed" : ""}`,
         );
         option.value = String(i);
@@ -510,6 +615,7 @@ export function initLyricsReview(deps: LyricsReviewDeps): {
       const mine = el("p", "field-hint", yourSong(item.title ?? "Unknown song", item.artist, item.album, item.duration));
       const label = el("strong", undefined, shown.candidates.length === 0 ? "No lyrics yet" : own ? "Lyrics" : `Candidate ${choice + 1} of ${shown.candidates.length}`);
       chooser.addEventListener("change", () => {
+        stash();
         choice = Number(chooser.value);
         if (!own) label.textContent = `Candidate ${choice + 1} of ${entry?.candidates.length ?? 0}`;
         message.textContent = "";
@@ -520,13 +626,44 @@ export function initLyricsReview(deps: LyricsReviewDeps): {
           message.textContent = taken.note;
         }
       });
-      const c = shown.candidates[choice];
+      const head = el("div", "row-actions");
+      head.append(label, mine, chooser);
+      return head;
+    }
+
+    /** The buttons under the words. */
+    function bottomRow(shown: Entry): HTMLElement {
+      const foot = el("div", "row-actions");
+      foot.append(button(own ? "Save to the song" : "Confirm and save to the song", () => void save(), ""));
+      if (!own) foot.append(button("Not a match: reject", () => void reject()));
+      foot.append(
+        button("Search online", () => void searchOnline(true), "secondary", "Looks for lyrics for this song at LRCLIB; if it has none, opens a web search in your browser"),
+        button("Search the web", () => void searchWeb().then((said) => (searched.textContent = said)), "secondary", "Opens a Google search for this song's words in your browser: copy what you want, paste it into the box and edit it to match the singing"),
+        button("This song is instrumental", () => void instrumental(), "secondary", "There is nothing sung: remove the lyrics and suggestions, and mark the song instrumental"),
+      );
+      if (own && shown.candidates.some((candidate) => candidate.source === "file")) foot.append(button("Remove the lyrics", () => void removeLyrics(), "secondary"));
+      foot.append(button("Close", () => close()));
+      return foot;
+    }
+
+    /** A candidate arrived while the person is working: the list and the buttons are drawn again, the words stay untouched. */
+    function redrawAround(): void {
+      if (!entry || !headRow || !footRow) return;
+      const head = topRow(entry);
+      const foot = bottomRow(entry);
+      headRow.replaceWith(head);
+      footRow.replaceWith(foot);
+      headRow = head;
+      footRow = foot;
+    }
+
+    function draw(): void {
+      if (!entry) return;
+      const c = entry.candidates[choice];
       // A song with no lyrics yet starts with one empty line to type or paste into.
       const first = c ? linesFor(c) : { lines: own ? [{ text: "", ms: null }] : [], note: "" };
       lines = first.lines;
-
-      const head = el("div", "row-actions");
-      head.append(label, mine, chooser);
+      headRow = topRow(entry);
       const transport = el("div", "row-actions sync-transport");
       transport.append(
         playButton,
@@ -547,17 +684,9 @@ export function initLyricsReview(deps: LyricsReviewDeps): {
           retime(clearTimes(lines));
         }),
       );
-      const foot = el("div", "row-actions");
-      foot.append(button(own ? "Save to the song" : "Confirm and save to the song", () => void save(), ""));
-      if (!own) foot.append(button("Not a match: reject", () => void reject()));
-      foot.append(
-        button("Search online", () => void searchOnline(), "secondary", "Looks for lyrics for this song online (LRCLIB); each one found is added to the list above"),
-        button("This song is instrumental", () => void instrumental(), "secondary", "There is nothing sung: remove the lyrics and suggestions, and mark the song instrumental"),
-      );
-      if (own && shown.candidates.some((candidate) => candidate.source === "file")) foot.append(button("Remove the lyrics", () => void removeLyrics(), "secondary"));
-      foot.append(button("Close", () => close()));
+      footRow = bottomRow(entry);
       const hint = el("p", "field-hint", "Click in the words to edit them like a document: select several lines to copy, cut or paste them between other lines (pasted lines have no time yet: press now on each one). Enter splits a line, Backspace joins two, Ctrl+Z undoes, and Ctrl+Enter times the line the cursor is in as it starts. Misspelled words are underlined; right-click one for suggestions. Space plays or pauses (outside the words) and Alt+Left or Right jumps 5 seconds (with Shift, 1). Lines you time by hand are marked: the Lyric AI keeps those where they are and times the others around them.");
-      box.replaceChildren(head, transport, tools, status, hint, list, message, foot);
+      box.replaceChildren(headRow, searched, transport, tools, status, hint, list, message, footRow);
       drawLines();
       refreshTransport();
       if (first.note) message.textContent = first.note;

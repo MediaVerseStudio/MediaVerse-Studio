@@ -14,7 +14,7 @@ function isAllowedExternal(address) {
   }
   if (url.protocol !== "https:" || url.username || url.password) return false;
   const host = url.hostname.toLowerCase().replace(/^www\./, "");
-  // The web image search for album artwork (owner, 2026-11-05): Google's search page only, nothing else there.
+  // The web searches for album artwork (owner, 2026-11-05) and lyrics (2026-11-26): Google's search page only, nothing else there.
   if (host === "google.com") return url.pathname === "/search";
   // The project's own issue board, and nothing else on GitHub.
   if (host === "github.com") return url.pathname.toLowerCase().startsWith("/mediaversestudio/mediaverse-studio/");

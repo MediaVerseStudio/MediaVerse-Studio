@@ -63,7 +63,7 @@ test("a playlist made on the phone is made on the server, with the songs the ser
   const result = await syncPhonePlaylists(io({ client: s.client, playlists: [playlistOf("Road trip", 1, 3)] }));
   assert.deepEqual(s.named("Road trip")!.songs, [1, 3]);
   assert.equal(result.report.madeOnServer, 1);
-  assert.deepEqual(result.state["road trip"], { name: "Road trip", ids: [hex(1), hex(3)] });
+  assert.deepEqual(result.state["road trip"], { name: "Road trip", ids: [hex(1), hex(3)], held: [hex(1), hex(3)] });
   assert.match(describePlaylistReport(result.report), /1 playlist sent to the server/);
 });
 
@@ -99,7 +99,7 @@ test("a song the server does not have stays in the phone's playlist and is not s
 test("changes on both sides are merged: an addition on either side stays, a removal on either side wins", async () => {
   const s = server({ Mix: [1, 2, 3, 5] }); // the server added 5 and kept 1, 2, 3
   s.lists.get("pl1")!.songs = [1, 2, 5]; // ...and someone took 3 off
-  const state: PhonePlaylistState = { mix: { name: "Mix", ids: [hex(1), hex(2), hex(3)] } };
+  const state: PhonePlaylistState = { mix: { name: "Mix", ids: [hex(1), hex(2), hex(3)], held: [hex(1), hex(2), hex(3)] } };
   // The phone took 2 off and added 4.
   const result = await syncPhonePlaylists(io({ client: s.client, state, playlists: [playlistOf("Mix", 1, 3, 4)], library: [1, 2, 3, 4, 5].map(phoneSong), manifest: manifestFor(1, 2, 3, 4, 5) }));
   assert.deepEqual(s.named("Mix")!.songs.sort(), [1, 4, 5]);
@@ -112,6 +112,34 @@ test("songs the phone does not have are not lost from the server's list by a syn
   const state: PhonePlaylistState = { mix: { name: "Mix", ids: [hex(1), hex(9)] } };
   await syncPhonePlaylists(io({ client: s.client, state, playlists: [playlistOf("Mix", 1)] }));
   assert.deepEqual(s.named("Mix")!.songs.sort(), [1, 9]);
+});
+
+test("a song that reaches the phone after its playlist did is added to the playlist, not taken off the server's", async () => {
+  const s = server({ Mix: [1, 2] });
+  const first = await syncPhonePlaylists(io({ client: s.client, library: [phoneSong(1)], manifest: manifestFor(1) }));
+  const second = await syncPhonePlaylists(io({ client: s.client, playlists: first.playlists, state: first.state }));
+  assert.deepEqual(s.named("Mix")!.songs, [1, 2]);
+  assert.deepEqual(idsOf(second.playlists.find((p) => p.name === "Mix")), ["p1", "p2"]);
+  // Taken off on the phone once it has it: off the server too.
+  await syncPhonePlaylists(io({ client: s.client, playlists: [playlistOf("Mix", 1)], state: second.state }));
+  assert.deepEqual(s.named("Mix")!.songs, [1]);
+});
+
+test("a record made before the phone's own songs were remembered never takes a song off the server", async () => {
+  const s = server({ Mix: [1, 2] });
+  const state: PhonePlaylistState = { mix: { name: "Mix", ids: [hex(1), hex(2)] } };
+  await syncPhonePlaylists(io({ client: s.client, state, playlists: [playlistOf("Mix", 1)] }));
+  assert.deepEqual(s.named("Mix")!.songs, [1, 2]);
+});
+
+test("a phone song the server cannot be asked about is still known by the entry on the server's list", async () => {
+  const s = server({ Mix: [1, 7] });
+  const odd = { ...phoneSong(7), id: "px" }; // copied onto the phone, and the search finds nothing for it
+  const state: PhonePlaylistState = { mix: { name: "Mix", ids: [hex(1), hex(7)], held: [hex(1), hex(7)] } };
+  const result = await syncPhonePlaylists(io({ client: s.client, state, library: [phoneSong(1), odd], manifest: manifestFor(1), playlists: [{ id: "a", name: "Mix", entries: [entryOf(phoneSong(1)), entryOf(odd)], updated: 1 }] }));
+  assert.deepEqual(s.named("Mix")!.songs, [1, 7]);
+  assert.deepEqual(idsOf(result.playlists.find((p) => p.name === "Mix")), ["p1", "px"]);
+  assert.equal(result.report.notOnServer, 0);
 });
 
 test("a playlist deleted on the phone is deleted on the server, and one deleted on the server (and unchanged here) goes from the phone", async () => {

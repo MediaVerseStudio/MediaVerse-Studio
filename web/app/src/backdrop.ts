@@ -9,7 +9,7 @@ import { planWall, rankCollage } from "./collage";
 import { coverUrl, onCoversForgotten } from "./cover-art";
 import { folderOf } from "./cover-util";
 import { el } from "./dom";
-import { flipChoice, type Cover } from "./backdrop-plan";
+import { flipChoice, wallGrid, type Cover } from "./backdrop-plan";
 
 type Track = { title: string; artist: string | null; album?: string | null; source_uri: string };
 
@@ -50,12 +50,18 @@ export function initBackdrop(
     return found;
   }
 
+  /** Sets the columns and cell size so the cells fill the window's full width exactly; returns the number of cells needed to cover its height too. */
+  function fit(): number {
+    const grid = wallGrid(window.innerWidth, CELL, GAP); // the wall is the full window width (100vw in the stylesheet)
+    wall.style.setProperty("--wall-cols", String(grid.cols));
+    wall.style.setProperty("--wall-cell", `${grid.size}px`);
+    return grid.cols * Math.ceil(Math.max(window.innerHeight, 600) / (grid.size + GAP));
+  }
+
   function layout(): void {
     wall.replaceChildren();
+    const cells = fit();
     if (covers.length === 0) return;
-    const width = Math.max(window.innerWidth, 800);
-    const height = Math.max(window.innerHeight, 600);
-    const cells = Math.ceil(width / (CELL + GAP)) * Math.ceil(height / (CELL + GAP));
     // Rotate the starting album each round so the big tiles land on different covers over an evening.
     const start = (round * 7) % covers.length;
     const ordered = [...covers.slice(start), ...covers.slice(0, start)];
@@ -127,6 +133,7 @@ export function initBackdrop(
 
   let resizeTimer: number | undefined;
   window.addEventListener("resize", () => {
+    fit(); // at once, so the cells keep filling the window while it is being dragged; the new layout follows
     window.clearTimeout(resizeTimer);
     resizeTimer = window.setTimeout(layout, 300);
   });
