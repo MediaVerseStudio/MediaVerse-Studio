@@ -914,7 +914,8 @@ mod tests {
         std::fs::write(root.join("Bare").join("notes.txt"), "x").unwrap();
         let mut ticks = 0;
         let found = scan(&root, &mut |_, _| ticks += 1);
-        assert!(ticks >= 2);
+        // At least the final report: a quick machine finishes a few files before there is anything in between to say.
+        assert!(ticks >= 1);
         let get = |name: &str| {
             found["files"]
                 .as_array()
