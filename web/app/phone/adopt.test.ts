@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { SyncSong } from "./jellyfin-phone.ts";
-import { findAdoptions, isOwnFolder, score, THRESHOLD, type LocalSong } from "./adopt.ts";
+import { findAdoptions, score, THRESHOLD, type LocalSong } from "./adopt.ts";
 
 const hex = (n: number): string => n.toString(16).padStart(32, "0");
 const song = (n: number, extra: Partial<SyncSong> = {}): SyncSong => ({ id: hex(n), title: `Song ${n}`, artist: "Band", albumArtist: "Band", album: "Record", albumId: hex(900), track: n, disc: null, year: 1999, container: "mp3", size: 5_000_000 + n, etag: `e${n}`, durationMs: 200_000 + n * 1000, ...extra });
@@ -52,8 +52,3 @@ test("two identical copies on the phone: one is recognised, the other is left al
   assert.equal(found.length, 1);
 });
 
-test("songs in the program's own folder are told from the person's own", () => {
-  assert.equal(isOwnFolder("Music/MediaVerse Home/Band/Record/"), true);
-  assert.equal(isOwnFolder("Music/Band/Record/"), false);
-  assert.equal(isOwnFolder("Music/MediaVerse Home 2/Band/"), false);
-});

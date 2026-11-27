@@ -299,3 +299,59 @@ test("an artist who only appears on other artists' albums is a choice of its own
   assert.notEqual(choiceKey(guest), choiceKey({ kind: "artist", id: hex(501), name: "Guest" }));
   assert.equal(choiceLabel(guest), "Guest (on other albums)");
 });
+
+test("with 'replace phone copies' on, a differing song is written over the phone's copy, whenever it was found", async () => {
+  const server = { [choiceKey(album)]: [song(1), song(2)] };
+  const w = world({ serverSongs: server });
+  w.phone.set("501", "own file");
+  w.phone.set("502", "own file");
+  // Song 1 was held before the choice was made (and is the same size as the server's); song 2 is recognised now.
+  w.manifest.files[hex(1)] = kept(1, [choiceKey(album)], { mediaId: "501", adopted: true, hold: true, etag: null });
+  w.io.adopt = async (songs) => songs.map((s) => ({ song: s, local: mine(2, 777), level: "differs" as const }));
+  const asked: string[][] = [];
+  w.io.grantWrite = async (ids) => (asked.push(ids), new Set(ids));
+  const outcome = await runHomeSync([album], Object.assign(w.io, { overwrite: true }));
+  assert.deepEqual({ updated: outcome.updated, differs: outcome.differs, downloaded: outcome.downloaded }, { updated: 2, differs: 0, downloaded: 0 });
+  assert.deepEqual(asked.flat().sort(), ["501", "502"]);
+  for (const n of [1, 2]) {
+    const file = w.manifest.files[hex(n)]!;
+    assert.deepEqual([file.adopted, file.hold, file.replace, file.etag], [true, undefined, undefined, `e${n}`]);
+  }
+  // Nothing left to do the next time.
+  assert.equal((await runHomeSync([album], w.io)).updated, 0);
+});
+
+test("a song the program fetched before is its own even though it sits in the Music folder", async () => {
+  const w = world({ serverSongs: { [choiceKey(album)]: [song(1)] } });
+  w.phone.set("501", "fetched");
+  w.io.adopt = async (songs) => [{ song: songs[0]!, local: { ...mine(1), own: true }, level: "exact" }];
+  await runHomeSync([album], w.io);
+  assert.equal(w.manifest.files[hex(1)]!.adopted, undefined);
+});
+
+test("five minutes' worth ends between songs, says how many are left, and the next round carries on", async () => {
+  const w = world({ serverSongs: { [choiceKey(album)]: [song(1), song(2), song(3)] } });
+  let fetched = 0;
+  const counts: number[][] = [];
+  const first = await runHomeSync([album], { ...w.io, download: async (...args) => ((fetched += 1), w.io.download(...args)), timeUp: () => fetched >= 2, count: (done, total) => counts.push([done, total]) });
+  assert.deepEqual([first.downloaded, first.left, first.cancelled], [2, 1, false]);
+  assert.deepEqual(counts, [[0, 3], [1, 3]]);
+  assert.match(describeOutcome(first), /Five minutes' worth done, 1 song left/);
+  const second = await runHomeSync([album], w.io);
+  assert.deepEqual([second.downloaded, second.left], [1, 0]);
+});
+
+test("permission is asked in groups, and not again once refused", async () => {
+  const songs = Array.from({ length: 1200 }, (_, i) => song(i + 1));
+  const w = world({ serverSongs: { [choiceKey(album)]: songs } });
+  for (const s of songs) {
+    const n = songs.indexOf(s) + 1;
+    w.phone.set(`${5000 + n}`, "own file");
+    w.manifest.files[s.id] = kept(n, [choiceKey(album)], { mediaId: `${5000 + n}`, adopted: true, etag: "old" });
+  }
+  const asked: number[] = [];
+  const outcome = await runHomeSync([album], Object.assign(w.io, { grantWrite: async (ids: string[]) => (asked.push(ids.length), new Set(asked.length === 1 ? ids : [])) }));
+  assert.deepEqual(asked, [500, 500]);
+  assert.equal(outcome.updated, 500);
+  assert.match(outcome.failed.join(" "), /700 songs on the phone could not be updated/);
+});

@@ -592,18 +592,18 @@ dependencies = [
 
 [[package]]
 name = "mediaverse_accuraterip"
-version = "0.9.0"
+version = "0.9.1"
 
 [[package]]
 name = "mediaverse_application"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "mediaverse_domain",
 ]
 
 [[package]]
 name = "mediaverse_cd_helper"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "mediaverse_accuraterip",
  "mediaverse_ripper",
@@ -613,7 +613,7 @@ dependencies = [
 
 [[package]]
 name = "mediaverse_disc_metadata"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "mediaverse_accuraterip",
  "serde",
@@ -622,11 +622,11 @@ dependencies = [
 
 [[package]]
 name = "mediaverse_domain"
-version = "0.9.0"
+version = "0.9.1"
 
 [[package]]
 name = "mediaverse_host"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "mediaverse_application",
  "mediaverse_domain",
@@ -640,14 +640,14 @@ dependencies = [
 
 [[package]]
 name = "mediaverse_library_filesystem"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "mediaverse_domain",
 ]
 
 [[package]]
 name = "mediaverse_lyric_ai"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "serde",
  "serde_json",
@@ -655,7 +655,7 @@ dependencies = [
 
 [[package]]
 name = "mediaverse_lyric_engine"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "mediaverse_lyric_ai",
  "ort",
@@ -665,7 +665,7 @@ dependencies = [
 
 [[package]]
 name = "mediaverse_metadata_tags"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "lofty",
  "mediaverse_ripper",
@@ -673,7 +673,7 @@ dependencies = [
 
 [[package]]
 name = "mediaverse_page_reader"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "image",
  "ort",
@@ -681,7 +681,7 @@ dependencies = [
 
 [[package]]
 name = "mediaverse_persistence_sqlite"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "mediaverse_application",
  "mediaverse_domain",
@@ -690,7 +690,7 @@ dependencies = [
 
 [[package]]
 name = "mediaverse_ripper"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "claxon",
  "flacenc",
@@ -703,11 +703,11 @@ dependencies = [
 
 [[package]]
 name = "mediaverse_setup_stub"
-version = "0.9.0"
+version = "0.9.1"
 
 [[package]]
 name = "mediaverse_sidecar"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "claxon",
  "lofty",
@@ -732,7 +732,7 @@ dependencies = [
 
 [[package]]
 name = "mediaverse_tag_repair"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "mediaverse_disc_metadata",
  "serde",

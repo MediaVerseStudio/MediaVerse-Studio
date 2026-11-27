@@ -19,6 +19,8 @@ contextBridge.exposeInMainWorld("mediaVerse", {
   musicbrainzAddRelease: (release) => ipcRenderer.invoke("mediaverse:musicbrainz-add-release", release),
   showInFolder: (filePath) => ipcRenderer.invoke("mediaverse:show-in-folder", String(filePath)),
   about: () => ipcRenderer.invoke("mediaverse:about"),
+  /** Holds off sleep while a long job runs. */
+  keepAwake: (on) => ipcRenderer.invoke("mediaverse:keep-awake", on === true),
   openLicences: () => ipcRenderer.invoke("mediaverse:open-licences"),
   copyText: (text) => ipcRenderer.invoke("mediaverse:copy-text", String(text)),
   homeHttp: (request) => ipcRenderer.invoke("mediaverse:home-http", request && typeof request === "object" ? request : {}),
@@ -37,6 +39,8 @@ contextBridge.exposeInMainWorld("mediaVerse", {
     forgetDevice: (id) => ipcRenderer.invoke("mediaverse:share-forget-device", String(id)),
     cancelPairing: () => ipcRenderer.invoke("mediaverse:share-cancel-pairing"),
     armPairing: () => ipcRenderer.invoke("mediaverse:share-arm-pairing"),
+    setUploads: (allowed) => ipcRenderer.invoke("mediaverse:share-set-uploads", allowed),
+    openIncoming: () => ipcRenderer.invoke("mediaverse:share-open-incoming"),
     firewallCheck: () => ipcRenderer.invoke("mediaverse:share-firewall-check"),
     firewallAllow: () => ipcRenderer.invoke("mediaverse:share-firewall-allow"),
     onChange: (handler) => {

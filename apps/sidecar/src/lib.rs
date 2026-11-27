@@ -160,15 +160,18 @@ pub fn handle_line(host: &Host, drives: &Arc<Drives>, output: &Output, line: &st
     true
 }
 
-/// Whether a request is one the player waits on while music plays (its volume-levelling gain, its cover, the exclusive output): such requests get their own
-/// lane so they are never stuck behind a slow one (a cover read over the network share, a long scan step). Anything else can ask for it with `"urgent": true`.
+/// Whether a request is one the player waits on while music plays (its volume-levelling gain, its cover, the exclusive output, the song's lyrics), or one a
+/// person waits on in the lyrics editor: such requests get their own lane so they are never stuck behind a slow one (a cover read over the network share, a
+/// long scan step; the owner's lyrics editor once sat minutes on "Loading", 2026-11-26). Anything else can ask for it with `"urgent": true`.
 fn is_urgent(line: &str) -> bool {
     let Ok(request) = serde_json::from_str::<Value>(line) else {
         return false;
     };
     let command = request.get("command").and_then(Value::as_str).unwrap_or("");
-    command == "loudness_gains"
-        || command.starts_with("native_audio_")
+    matches!(
+        command,
+        "loudness_gains" | "track_lyrics" | "lookup_lyrics" | "get_lyrics_review"
+    ) || command.starts_with("native_audio_")
         || request
             .get("args")
             .and_then(|a| a.get("urgent"))
@@ -176,7 +179,8 @@ fn is_urgent(line: &str) -> bool {
             == Some(true)
 }
 
-/// Whether a request only reads a picture (an album cover or an artist's photo, often over the network share). Home, the library and the cover wall ask for
+/// Whether a request only reads a picture (an album cover, an artist's photo or a picture offered for a song, often over the network share; the last
+/// used to wait behind a long picture run and showed as broken pictures meanwhile, 2026-11-26). Home, the library and the cover wall ask for
 /// dozens at once; one after another they took seconds, so they get a small lane of their own, apart from the player's (owner, 2026-11-24: slow Home page).
 fn is_picture_read(line: &str) -> bool {
     let Ok(request) = serde_json::from_str::<Value>(line) else {
@@ -184,7 +188,7 @@ fn is_picture_read(line: &str) -> bool {
     };
     matches!(
         request.get("command").and_then(Value::as_str),
-        Some("track_cover" | "track_artist_photo")
+        Some("track_cover" | "track_artist_photo" | "art_source")
     )
 }
 
@@ -200,11 +204,56 @@ fn is_shutdown(line: &str) -> bool {
         .unwrap_or(false)
 }
 
+/// A request that waits or runs this long in the one-at-a-time queue is written down.
+const SLOW_AFTER: std::time::Duration = std::time::Duration::from_secs(10);
+const SLOW_LOG_BYTES: u64 = 256 * 1024;
+
+/// Writes down, in `slow-requests.log` among the program's records, a request that held the one-at-a-time queue up or was held up in it: when, the
+/// command's name and the seconds, nothing about songs or files. A stall used to leave nothing to find its cause by (2026-11-26).
+fn note_slow(
+    data_dir: &std::path::Path,
+    line: &str,
+    waited: std::time::Duration,
+    ran: std::time::Duration,
+) {
+    use std::io::Write;
+    if waited < SLOW_AFTER && ran < SLOW_AFTER {
+        return;
+    }
+    let command: String = serde_json::from_str::<Value>(line)
+        .ok()
+        .and_then(|r| r.get("command").and_then(Value::as_str).map(str::to_owned))
+        .unwrap_or_default()
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric() || *c == '_')
+        .take(64)
+        .collect();
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs());
+    let file = data_dir.join("slow-requests.log");
+    if std::fs::metadata(&file).is_ok_and(|m| m.len() > SLOW_LOG_BYTES) {
+        let _ = std::fs::remove_file(&file);
+    }
+    if let Ok(mut out) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(file)
+    {
+        let _ = writeln!(
+            out,
+            "{now}\t{command}\tran {}s\twaited {}s",
+            ran.as_secs(),
+            waited.as_secs()
+        );
+    }
+}
+
 /// Reads requests until EOF or `shutdown`. Urgent requests (see `is_urgent`) are answered by a small pool of their own; every other request is answered
 /// one after another, in the order sent, as before. The answers carry the request's id, so their order does not matter to the caller.
 pub fn serve(host: &Arc<Host>, drives: &Arc<Drives>, output: &Output, input: impl BufRead) {
     use std::sync::mpsc;
-    let (slow_tx, slow_rx) = mpsc::channel::<String>();
+    let (slow_tx, slow_rx) = mpsc::channel::<(std::time::Instant, String)>();
     let (fast_tx, fast_rx) = mpsc::channel::<String>();
     let fast_rx = Arc::new(Mutex::new(fast_rx));
     let (picture_tx, picture_rx) = mpsc::channel::<String>();
@@ -231,8 +280,15 @@ pub fn serve(host: &Arc<Host>, drives: &Arc<Drives>, output: &Output, input: imp
     {
         let (host, drives, output) = (host.clone(), drives.clone(), output.clone());
         workers.push(std::thread::spawn(move || {
-            while let Ok(line) = slow_rx.recv() {
+            while let Ok((asked, line)) = slow_rx.recv() {
+                let started = std::time::Instant::now();
                 handle_line(&host, &drives, &output, &line);
+                note_slow(
+                    &drives.data_dir,
+                    &line,
+                    started.duration_since(asked),
+                    started.elapsed(),
+                );
             }
         }));
     }
@@ -263,14 +319,14 @@ pub fn serve(host: &Arc<Host>, drives: &Arc<Drives>, output: &Output, input: imp
             handle_line(host, drives, output, &line);
             break;
         }
-        let lane = if is_urgent(&line) {
-            &fast_tx
+        let sent = if is_urgent(&line) {
+            fast_tx.send(line).is_ok()
         } else if is_picture_read(&line) {
-            &picture_tx
+            picture_tx.send(line).is_ok()
         } else {
-            &slow_tx
+            slow_tx.send((std::time::Instant::now(), line)).is_ok()
         };
-        if lane.send(line).is_err() {
+        if !sent {
             break;
         }
     }
@@ -299,5 +355,29 @@ mod lane_tests {
         assert!(is_picture_read(
             r#"{"id":4,"command":"track_artist_photo"}"#
         ));
+        assert!(is_picture_read(r#"{"id":5,"command":"art_source"}"#));
+        for lyrics in ["track_lyrics", "lookup_lyrics", "get_lyrics_review"] {
+            assert!(is_urgent(&format!(r#"{{"id":6,"command":"{lyrics}"}}"#)));
+        }
+        // Saving stays in the one-at-a-time queue: two writers must never meet on a file.
+        assert!(!is_urgent(r#"{"id":7,"command":"update_track_media"}"#));
+    }
+
+    #[test]
+    fn only_slow_requests_are_written_down_and_without_their_songs() {
+        let dir = std::env::temp_dir().join(format!("mv-slow-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let log = dir.join("slow-requests.log");
+        let _ = std::fs::remove_file(&log);
+        let request =
+            r#"{"id":1,"command":"update_track_media","args":{"paths":["M:\\Private\\song.mp3"]}}"#;
+        let quick = std::time::Duration::from_secs(1);
+        note_slow(&dir, request, quick, quick);
+        assert!(!log.exists());
+        note_slow(&dir, request, quick, std::time::Duration::from_secs(200));
+        let written = std::fs::read_to_string(&log).unwrap();
+        assert!(written.contains("\tupdate_track_media\tran 200s\twaited 1s"));
+        assert!(!written.contains("Private"));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

@@ -7,12 +7,17 @@ import { analyseSong, BANDS, frameAt, type Spectrum } from "../tv/spectrum.ts";
 import { analyseInBackground } from "../tv/spectrum-thread.ts";
 import { DEFAULT_PALETTE, drawStyle, mixPalette, paletteFromPixels, VIS_FRAME_MS, type Palette } from "../tv/visuals.ts";
 import { ACCENT_CHOICES, applyAccent, loadAccent, paletteFromHex, saveAccent } from "../tv/accent-choices.ts";
+import { coverAccent, createAccent } from "../src/accent.ts";
 
 /** The highlight colour chosen in Settings (D75, one of 20, kept on this phone), as on the PC and the TV. */
 const ACCENT_STORE = "mediaverse.phone.accent";
 let chosenAccent = loadAccent(ACCENT_STORE);
 let chosenPalette: Palette = paletteFromHex(chosenAccent);
 applyAccent(document.documentElement, chosenAccent);
+/** As on the PC and TV: while Now Playing is open the highlight colour is the playing album cover's own. */
+const playingAccent = createAccent();
+playingAccent.setDefault(chosenAccent);
+let coverColour: [number, number, number] | null = null;
 import { icon, type IconName } from "../src/icons.ts";
 import { el } from "../src/dom.ts";
 import { addSongs, changeAt, freeName, loadPlaylists, resolvePlaylist, savePlaylists, type PhonePlaylist } from "./phone-playlists.ts";
@@ -23,12 +28,20 @@ import { countdown, SMART_LISTS, smartList, type SmartId } from "./smart-lists.t
 import { addFlag, isFlagged, removeFlag, songKey, type Flag } from "./flags.ts";
 import { Jellyfin, JellyfinProblem, savedSession, saveSession, type Http, type HttpReply, type Session } from "./jellyfin-phone.ts";
 import { syncFlags, type SyncReport } from "./flag-sync.ts";
+import { setupDeclined, keepProfileSession, readProfile, savedProfileSession, setAskAtStart, switchProfile } from "./device-profile.ts";
+import { createProfileUi } from "./profile-ui.ts";
+import { createComputerLink, recordedIds } from "./computer-ui.ts";
+import { createSendMusic } from "./send-ui.ts";
+import { serverListing } from "./send-music.ts";
+import { sendPlays, syncFavorites } from "./profile-sync.ts";
+import { cleanManifest } from "./home-sync.ts";
+import { openProfile, shareFlagLists } from "../src/jellyfin-profiles.ts";
 import { createHomeSync, type PickLevel } from "./home-sync-ui.ts";
 import { currentLine, plainLines, sortedLines, type TrackLyrics } from "../src/lyrics-format.ts";
 import { count, LETTERS, letterStarts, playWindow, positionNow, queueInPlayOrder, rowForLetter, songsAndLength, visibleRange } from "./phone-logic.ts";
 
 type Tab = "artists" | "genres" | "albums" | "songs" | "favorites" | "playlists" | "queue" | "settings";
-type Page = { kind: "tab"; tab: Tab } | { kind: "album"; album: Album } | { kind: "artist"; artist: Artist } | { kind: "genre"; genre: Genre } | { kind: "playlist"; id: string } | { kind: "smart"; id: SmartId } | { kind: "search" } | { kind: "home" } | { kind: "pick"; level: PickLevel; artist?: { id: string; name: string } };
+type Page = { kind: "tab"; tab: Tab } | { kind: "album"; album: Album } | { kind: "artist"; artist: Artist } | { kind: "genre"; genre: Genre } | { kind: "playlist"; id: string } | { kind: "smart"; id: SmartId } | { kind: "search" } | { kind: "home"; computer?: boolean } | { kind: "pick"; level: PickLevel; artist?: { id: string; name: string }; computer?: boolean };
 
 const LYRICS_STORE = "mediaverse.phone.lyrics-shown";
 /** Whether Now Playing shows the lyrics instead of the cover (remembered), the song they were asked for, the answer, and the line lit now (-2: not drawn yet, -1: before the first line). */
@@ -251,9 +264,9 @@ function onMessage(message: FromApp): void {
     case "library": {
       flags = readFlags();
       setLibrary(message.tracks);
-      const waiters = libraryWaiters.splice(0);
-      for (const waiter of waiters) waiter();
-      syncSoon();
+      // Whoever asked for a fresh library goes on once the hearts are fresh too: a song fetched again has a new id,
+      // and old hearts beside new songs would look like hearts taken off.
+      heartWaiters.push(...libraryWaiters.splice(0));
       $("#welcome").hidden = true;
       $("#browse").hidden = false;
       if (location.hash === "#playing") openPlaying();
@@ -262,6 +275,8 @@ function onMessage(message: FromApp): void {
       bridge.send({ type: "share" });
       render();
       updateNowPlaying(true);
+      void askWhoAtStart();
+      syncSoon(); // after the question: nothing is synced for the connecting account while a profile is being chosen
       break;
     }
     case "openPlaying":
@@ -278,7 +293,9 @@ function onMessage(message: FromApp): void {
       toast("Sharing needs access to the home network");
       break;
     case "favorites":
+      favoritesKnown = true;
       favorites = new Set(message.ids);
+      for (const waiter of heartWaiters.splice(0)) waiter();
       updateFavorite();
       if (currentPage().kind === "tab" && (currentPage() as { tab: Tab }).tab === "favorites") render();
       break;
@@ -295,7 +312,15 @@ function onMessage(message: FromApp): void {
     case "deletedLocal":
     case "fingerprint":
     case "writeGranted":
+    case "movedToRoot":
+    case "moveProgress":
       homeSync.onNative(message);
+      computerLink.onNative(message);
+      break;
+    case "uploaded":
+    case "uploadProgress":
+      computerLink.onNative(message);
+      serverSend.onNative(message);
       break;
     case "http": {
       const resolve = waitingHttp.get(message.id);
@@ -311,6 +336,7 @@ function onMessage(message: FromApp): void {
       }
       break;
     case "stats":
+      statsKnown = true;
       playStats = message.stats;
       if (currentPage().kind === "smart") render();
       break;
@@ -428,9 +454,13 @@ function render(fresh = false): void {
   if (page.kind === "tab" && page.tab === "settings") {
     settingsPage();
   } else if (page.kind === "home") {
-    homeSync.renderHome(view);
+    if (page.computer) computerLink.renderHome(view);
+    else {
+      homeSync.renderHome(view);
+      serverSend.render(view);
+    }
   } else if (page.kind === "pick") {
-    homeSync.renderPick(view, page.level, page.artist);
+    (page.computer ? computerLink.sync : homeSync).renderPick(view, page.level, page.artist);
   } else if (!tracks.length) {
     view.append(emptyLibrary());
   } else if (page.kind === "tab") {
@@ -460,9 +490,10 @@ function emptyLibrary(): HTMLElement {
   const again = el("button", "primary", "Look again");
   again.type = "button";
   again.addEventListener("click", () => bridge.send({ type: "library", reload: true }));
-  const fromServer = el("button", "secondary", "Get music from my home server");
+  const withComputer = !jfSession && computerLink.paired();
+  const fromServer = el("button", "secondary", withComputer ? "Get music from my computer" : "Get music from my server or computer");
   fromServer.type = "button";
-  fromServer.addEventListener("click", () => (jfSession ? go({ kind: "home" }) : switchTab("settings")));
+  fromServer.addEventListener("click", () => (jfSession ? go({ kind: "home" }) : withComputer ? go({ kind: "home", computer: true }) : switchTab("settings")));
   box.append(again, fromServer);
   return box;
 }
@@ -709,6 +740,7 @@ function songsList(): void {
 let playlists: PhonePlaylist[] = loadPlaylists();
 
 function storePlaylists(): void {
+  if (switchingProfile) return; // the storage already holds the next person's playlists
   savePlaylists(playlists);
 }
 
@@ -1088,6 +1120,7 @@ function settingsPage(): void {
   homeRow.append(homeText, el("span", "chevron", "›"));
   homeRow.addEventListener("click", () => go({ kind: "home" }));
   box.append(homeRow);
+  box.append(computerLink.settings());
   box.append(flagSettings());
   box.append(eqSection());
   // The highlight colour (D75): tap a swatch. Now Playing's visualizer still follows the cover.
@@ -1105,6 +1138,7 @@ function settingsPage(): void {
       chosenPalette = paletteFromHex(choice.hex);
       saveAccent(ACCENT_STORE, choice.hex);
       applyAccent(document.documentElement, choice.hex);
+      playingAccent.setDefault(choice.hex);
       for (const other of swatches.querySelectorAll<HTMLElement>(".swatch")) {
         other.classList.toggle("is-on", other === swatch);
         other.setAttribute("aria-pressed", String(other === swatch));
@@ -1373,7 +1407,7 @@ $("#np-tv").addEventListener("click", () => {
   else sheet("Play on", [...tvs.map((tv) => [tvName(tv), () => sendToTv(tv)] as [string, () => void]), ["Cancel", () => {}]]);
 });
 // Sleep timer (from Musicolet and MediaMonkey): fades out and pauses after a time, or when this song ends.
-$("#np-sleep").addEventListener("click", () => {
+function sleepMenu(): void {
   const active = (player.sleep_ms ?? 0) > 0 || !!player.sleep_song;
   const set = (minutes: number): [string, () => void] => [`${minutes} minutes`, () => { bridge.send({ type: "sleep", minutes }); toast(`Sleep timer: ${minutes} minutes`); }];
   sheet("Sleep timer", [
@@ -1382,17 +1416,9 @@ $("#np-sleep").addEventListener("click", () => {
     ...(active ? [["Turn the timer off", () => { bridge.send({ type: "sleep", minutes: 0 }); toast("Sleep timer off"); }] as [string, () => void]] : []),
     ["Cancel", () => {}],
   ]);
-});
-// A-B repeat (from Musicolet): tap once for the start, again for the end (it then loops), a third time to stop.
-$("#np-ab").addEventListener("click", () => {
-  if (onTv) { toast("A-B repeat works on the phone only"); return; }
-  const before = player.ab_a ?? -1, beforeB = player.ab_b ?? -1;
-  bridge.send({ type: "ab" });
-  toast(before < 0 ? "Start marked: tap again for the end" : beforeB < 0 ? "Looping between the marks" : "A-B repeat off");
-});
-
+}
 // A song with no cover shows the dark backing square instead of the browser's broken-image icon.
-for (const id of ["mini-cover", "np-cover", "backdrop-image"]) {
+for (const id of ["mini-cover", "np-cover", "backdrop-image", "np-backart"]) {
   const image = $<HTMLImageElement>(`#${id}`);
   image.addEventListener("error", () => image.classList.add("no-art"));
   image.addEventListener("load", () => image.classList.remove("no-art"));
@@ -1408,8 +1434,9 @@ function lyricsNote(box: HTMLElement, text: string): void {
 function renderLyrics(): void {
   const box = $("#np-lyrics-box");
   $("#np-art-wrap").classList.toggle("has-lyrics", lyricsShown);
+  // With lyrics showing the screen gives them room: smaller controls and the cover faded behind.
+  $("#playing").classList.toggle("has-lyrics", lyricsShown);
   box.hidden = !lyricsShown;
-  $("#np-lyrics").classList.toggle("is-on", lyricsShown);
   if (!lyricsShown) return;
   box.scrollTop = 0;
   if (!lyricsData) return lyricsNote(box, "Looking for lyrics…");
@@ -1438,27 +1465,35 @@ function wantLyrics(): void {
   bridge.send({ type: "lyrics", id: player.id });
 }
 
-/** Lights the line being sung and keeps it in the middle; called from the clock. */
+/** Lights the line being sung and keeps it in the middle; before the first line is sung, line 1 waits there. Called
+ *  from the clock. A freshly drawn or resized list goes straight there, without sliding. */
 function tickLyrics(ms: number): void {
   if (!lyricsShown || !lyricsData?.synced) return;
   const line = currentLine(lyricsData.lines, ms);
   if (line === lyricsLine) return;
+  const fresh = lyricsLine === -2;
   lyricsLine = line;
   const box = $("#np-lyrics-box");
   box.querySelectorAll("p").forEach((p, index) => {
     p.classList.toggle("is-now", index === line);
     p.classList.toggle("is-sung", index < line);
   });
-  const now = box.children[line] as HTMLElement | undefined;
-  if (now) box.scrollTo({ top: now.offsetTop - box.clientHeight / 2 + now.clientHeight / 2, behavior: "smooth" });
+  const middle = box.children[Math.max(0, line)] as HTMLElement | undefined;
+  if (middle) box.scrollTo({ top: middle.offsetTop - box.clientHeight / 2 + middle.clientHeight / 2, behavior: fresh ? "instant" : "smooth" });
 }
+// The box gets its size when Now Playing opens and changes it when the phone is turned: centre the line again.
+new ResizeObserver(() => {
+  if (!lyricsShown || !lyricsData?.synced) return;
+  lyricsLine = -2;
+  tickLyrics(positionNow(player, stateAt, performance.now()));
+}).observe($("#np-lyrics-box"));
 
-$("#np-lyrics").addEventListener("click", () => {
+function toggleLyrics(): void {
   lyricsShown = !lyricsShown;
   try { localStorage.setItem(LYRICS_STORE, lyricsShown ? "1" : "0"); } catch { /* only a convenience */ }
   wantLyrics();
   renderLyrics();
-});
+}
 // Tapping a synced line jumps the song there.
 $("#np-lyrics-box").addEventListener("click", (event) => {
   const p = (event.target as HTMLElement).closest("p");
@@ -1474,7 +1509,7 @@ function readBookmarks(): Record<string, Bookmark[]> {
 function writeBookmarks(all: Record<string, Bookmark[]>): void {
   try { localStorage.setItem(BOOKMARK_STORE, JSON.stringify(all)); } catch { /* storage unavailable: the bookmark is lost on restart */ }
 }
-$("#np-bookmarks").addEventListener("click", () => {
+function bookmarksMenu(): void {
   const id = player.id;
   if (!id) return;
   const all = readBookmarks();
@@ -1495,11 +1530,26 @@ $("#np-bookmarks").addEventListener("click", () => {
     ])] as [string, () => void]] : []),
     ["Cancel", () => {}],
   ]);
-});
+}
 
-$("#np-eq").addEventListener("click", () => {
+function openEqualizer(): void {
   closePlaying();
   switchTab("settings");
+  document.querySelector("#eq-box")?.scrollIntoView({ block: "start" });
+}
+
+// The three dots (owner, 2026-11-26): what is not needed on the screen all the time.
+$("#np-more").addEventListener("click", () => {
+  const sleeping = player.sleep_song ? "end of this song" : (player.sleep_ms ?? 0) > 0 ? countdown(player.sleep_ms!) : "";
+  sheet("Now playing", [
+    [lyricsShown ? "Lyrics: on (tap to hide)" : "Lyrics: off (tap to show)", toggleLyrics],
+    [sleeping ? `Sleep timer: ${sleeping}` : "Sleep timer…", sleepMenu],
+    ["Equalizer", openEqualizer],
+    ["Add to playlist…", () => { if (player.id) addToPlaylist([player.id]); }],
+    ["Open playlists", () => { closePlaying(); switchTab("playlists"); }],
+    ["Bookmarks…", bookmarksMenu],
+    ["Cancel", () => {}],
+  ]);
 });
 // Volume of the TV or speaker (Cast devices); the phone's own volume keys still control the phone.
 const npVolume = $<HTMLInputElement>("#np-volume");
@@ -1518,7 +1568,11 @@ function updateVolume(): void {
 }
 const npFavorite = $<HTMLButtonElement>("#np-favorite");
 npFavorite.addEventListener("click", () => {
-  if (player.id) bridge.send({ type: "favorite", id: player.id, on: !favorites.has(player.id) });
+  if (player.id) {
+    bridge.send({ type: "favorite", id: player.id, on: !favorites.has(player.id) });
+    computerLink.soon();
+  }
+  scheduleSync(); // a profile's heart goes to the server soon
 });
 
 function updateFavorite(): void {
@@ -1585,6 +1639,7 @@ const jf = new Jellyfin(appHttp, deviceId(), deviceLabel());
 // ---------- Music from the home server (D177) ----------
 /** Resolved when the next "library" message arrives: a round reads the phone's music again and waits for it. */
 const libraryWaiters: Array<() => void> = [];
+const heartWaiters: Array<() => void> = [];
 const homeSync = createHomeSync({
   bridge,
   jf,
@@ -1606,17 +1661,101 @@ const homeSync = createHomeSync({
   },
   flags: () => flags,
   setFlags: (next) => saveFlags(next),
-  runFlagSync: () => runSync(),
-  changed: () => {
-    const kind = currentPage().kind;
-    if (kind === "home" || (kind === "tab" && (currentPage() as { tab: Tab }).tab === "settings")) {
-      const top = view.scrollTop;
-      render();
-      view.scrollTop = top;
-    }
-  },
+  runFlagSync: () => runSync(true),
+  heldElsewhere: () => recordedIds(".computer"),
+  otherRunning: () => computerLink.sync.running(),
+  changed: () => redrawSync(),
   openHome: () => go({ kind: "home" }),
   openPick: (level, artist) => go({ kind: "pick", level, artist }),
+  openSettings: () => switchTab("settings"),
+  confirm: (title, yes, action) => sheet(title, [[yes, action], ["Cancel", () => undefined]]),
+  toast,
+});
+function redrawSync(): void {
+  const kind = currentPage().kind;
+  if (kind === "home" || (kind === "tab" && (currentPage() as { tab: Tab }).tab === "settings")) {
+    // Not while an address or code is being typed there.
+    if (document.activeElement instanceof HTMLInputElement && view.contains(document.activeElement) && kind === "tab") return;
+    const top = view.scrollTop;
+    render();
+    view.scrollTop = top;
+  }
+}
+
+// ---------- New music from the phone to the server (D215) ----------
+const serverSend = createSendMusic(
+  {
+    bridge,
+    tracks: () => tracks,
+    reloadLibrary: () =>
+      new Promise<void>((resolve) => {
+        libraryWaiters.push(resolve);
+        bridge.send({ type: "library", reload: true });
+        window.setTimeout(resolve, 20_000);
+      }),
+    changed: () => redrawSync(),
+    confirm: (title, yes, action) => sheet(title, [[yes, action], ["Cancel", () => undefined]]),
+  },
+  {
+    place: "server",
+    session: () => jfSession,
+    library: async (to) => {
+      const plugin = await jf.mediaverseInfo(to);
+      if (!plugin) return { refused: "This server does not take new music yet: it needs the MediaVerse Sync plugin." };
+      if (!plugin.uploads) return { refused: "The server is not accepting new music. Its administrator can allow it in the MediaVerse Sync plugin's settings." };
+      const items = [];
+      for (let start = 0; start < 500_000; start += 2_000) {
+        const page = await jf.audioItems(to, start, 2_000);
+        items.push(...page.items);
+        if (page.items.length < 2_000 || items.length >= page.total) break;
+      }
+      // An empty answer is a server still scanning or without its drive: everything would look new.
+      return items.length ? { songs: serverListing(items) } : { refused: "The server's library is empty just now, so nothing can be compared. Try again when it has finished scanning." };
+    },
+    request: (to, path) => jf.uploadRequest(to, path),
+    hint: "Send music bought or copied onto this phone to your server. It waits there in the incoming folder for you to look over; nothing is taken off the phone.",
+    folder: "the server's incoming folder",
+    sentKey: (to) => `mediaverse.phone.server-sent:${to.serverId}`,
+    skip: () => recordedIds(""),
+  },
+);
+
+// ---------- Your computer, with no server (D214) ----------
+const computerLink = createComputerLink({
+  bridge,
+  http: appHttp,
+  deviceId: deviceId(),
+  deviceLabel: deviceLabel(),
+  tracks: () => tracks,
+  libraryLoaded: () => libraryLoaded,
+  reloadLibrary: () =>
+    new Promise<void>((resolve) => {
+      libraryWaiters.push(resolve);
+      bridge.send({ type: "library", reload: true });
+      window.setTimeout(resolve, 20_000);
+    }),
+  playlists: () => playlists,
+  setPlaylists: (next) => {
+    playlists = next;
+    storePlaylists();
+  },
+  flags: () => flags,
+  setFlags: (next) => saveFlags(next),
+  favorites: () => [...favorites],
+  favoritesKnown: () => favoritesKnown,
+  setFavorite: (id, on) => bridge.send({ type: "favorite", id, on }),
+  albumOf: (id) => albumOf.get(id)?.title ?? null,
+  flagsChanged: (raised, cleared) => {
+    const dismissed = readDismissed();
+    for (const flag of raised) dismissed.delete(songKey(flag));
+    // Taken off on the computer: the server's list may still hold it until the computer has synced with the server.
+    for (const flag of cleared) if (flag.sent !== null) dismissed.add(songKey(flag));
+    saveDismissed(dismissed);
+  },
+  otherRunning: () => homeSync.running(),
+  changed: () => redrawSync(),
+  openHome: () => go({ kind: "home", computer: true }),
+  openPick: (level, artist) => go({ kind: "pick", level, artist, computer: true }),
   openSettings: () => switchTab("settings"),
   confirm: (title, yes, action) => sheet(title, [[yes, action], ["Cancel", () => undefined]]),
   toast,
@@ -1639,6 +1778,7 @@ npFlag.addEventListener("click", () => {
       saveDismissed(dismissed);
     }
     saveFlags(removeFlag(flags, track.id));
+    computerLink.soon();
     toast("Flag removed on this phone");
     return;
   }
@@ -1647,7 +1787,99 @@ npFlag.addEventListener("click", () => {
   saveFlags(addFlag(flags, { id: track.id, title: track.title, artist: track.artist, album: albumOf.get(track.id)?.title ?? track.album, durationMs: track.duration_ms }, Date.now()));
   toast(jfSession ? "Flagged. Sending to the server…" : "Flagged as a problem track");
   scheduleSync();
+  computerLink.soon();
 });
+
+// ---------- Profiles (D213) ----------
+let favoritesKnown = false;
+let statsKnown = false;
+let switchingProfile = false;
+/** True while the start-up question is being put together. */
+let choosingProfile = false;
+let askedWho = false;
+/** Set for the reload that follows a choice, so it is not asked again at once. */
+const CHOSEN = "mediaverse.phone.profile-just-chosen";
+const profileUi = createProfileUi({ root: $("#who"), jf, session: () => jfSession, choose: chooseProfile });
+
+async function chooseProfile(name: string, askAtStart: boolean): Promise<void> {
+  const session = jfSession;
+  if (!session) return;
+  const current = readProfile();
+  if (current?.name === name && session.deviceId) {
+    setAskAtStart(askAtStart);
+    profileUi.close();
+    refreshSettings();
+    return;
+  }
+  if (syncing || homeSync.running()) throw new Error("Music is being synced just now: try again when it has finished.");
+  const server = { base: session.base, name: session.name, id: session.serverId };
+  // A sign-in made before is used again, so a profile used on this phone can be switched to away from home.
+  const next = savedProfileSession<Session>(name, server.id) ?? (await openProfile(jf, server, name));
+  switchingProfile = true;
+  keepProfileSession(name, server.id, next);
+  const profile = switchProfile(name);
+  setAskAtStart(askAtStart);
+  saveSession(next);
+  jfSession = next;
+  try { sessionStorage.setItem(CHOSEN, "1"); } catch { /* asked once more */ }
+  bridge.send({ type: "profile", name: profile.name, adopted: profile.adopted });
+  location.reload(); // every list is read again, for this person
+}
+
+/** Once per start: a signed-in phone with no profile yet is asked to set one up; one that asks at start, who it is. */
+async function askWhoAtStart(): Promise<void> {
+  if (askedWho || !jfSession) return;
+  askedWho = true;
+  let justChosen = false;
+  try {
+    justChosen = sessionStorage.getItem(CHOSEN) === "1";
+    sessionStorage.removeItem(CHOSEN);
+  } catch { /* asked */ }
+  if (justChosen) return;
+  const profile = readProfile();
+  if (profile ? !profile.askAtStart : setupDeclined(jfSession.serverId)) return;
+  choosingProfile = true;
+  try {
+    await profileUi.open(profile ? "start" : "setup");
+  } finally {
+    choosingProfile = false;
+  }
+}
+
+const readStored = <T,>(key: string, fallback: T): T => {
+  try {
+    const text = localStorage.getItem(key);
+    return text ? (JSON.parse(text) as T) : fallback;
+  } catch {
+    return fallback;
+  }
+};
+const keepStored = (key: string, value: unknown): void => {
+  try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* the next round merges again */ }
+};
+
+/** The profile's hearts, plays and playlists, both ways. Only with the phone's music and hearts read, so nothing is taken for removed. */
+async function profileRound(session: Session, partOfSync: boolean): Promise<void> {
+  if (!readProfile() || !session.deviceId || switchingProfile) return;
+  // Hearts are not compared while a sync is swapping files (it ends with its own round, once everything is read again).
+  if (!partOfSync && (homeSync.running() || computerLink.sync.running())) return;
+  await shareFlagLists(jf, session).catch(() => 0);
+  if (!libraryLoaded || !tracks.length || !favoritesKnown) return;
+  const library = tracks.map((t) => ({ id: t.id, title: t.title, artist: t.artist, album_artist: t.album_artist, album: albumOf.get(t.id)?.title ?? t.album }));
+  const manifest = cleanManifest(readStored<unknown>("mediaverse.phone.home-manifest", null));
+  const base = readStored<string[] | null>("mediaverse.phone.favorite-held", null);
+  const round = await syncFavorites(jf, session, [...favorites], library, manifest, base);
+  if (switchingProfile) return;
+  keepStored("mediaverse.phone.favorite-held", round.state);
+  for (const id of round.add) bridge.send({ type: "favorite", id, on: true });
+  for (const id of round.remove) bridge.send({ type: "favorite", id, on: false });
+  if (statsKnown) {
+    const sent = await sendPlays(jf, session, playStats, library, manifest, readStored<number | null>("mediaverse.phone.plays-sent", null));
+    if (switchingProfile) return;
+    keepStored("mediaverse.phone.plays-sent", sent);
+  }
+  await homeSync.syncPlaylists();
+}
 
 let syncTimer: number | undefined;
 let lastSyncAt = 0;
@@ -1667,7 +1899,8 @@ function describeSync(report: SyncReport): string {
   return parts.length ? `Synced: ${parts.join("; ")}.` : "Synced: nothing new.";
 }
 
-async function runSync(): Promise<void> {
+/** `partOfSync`: called by a music sync, after it has read the phone's music again. */
+async function runSync(partOfSync = false): Promise<void> {
   if (!jfSession || syncing) return;
   syncing = true;
   syncStatus = "Syncing…";
@@ -1679,8 +1912,18 @@ async function runSync(): Promise<void> {
     saveFlags(report.flags);
     lastSyncAt = Date.now();
     syncStatus = describeSync(report);
+    await profileRound(jfSession, partOfSync);
   } catch (error) {
-    if (error instanceof JellyfinProblem && error.kind === "signed_out") {
+    const profile = readProfile();
+    if (error instanceof JellyfinProblem && error.kind === "signed_out" && profile && jfSession?.deviceId) {
+      // A profile has no password: it is simply signed in to again.
+      const server = { base: jfSession.base, name: jfSession.name, id: jfSession.serverId };
+      keepProfileSession(profile.name, server.id, null);
+      jfSession = await openProfile(jf, server, profile.name).catch(() => null);
+      saveSession(jfSession);
+      if (jfSession) keepProfileSession(profile.name, server.id, jfSession);
+      syncStatus = jfSession ? "Signed in again. The next sync follows." : "Jellyfin no longer accepts this phone. Sign in again.";
+    } else if (error instanceof JellyfinProblem && error.kind === "signed_out") {
       jfSession = null;
       saveSession(null);
       syncStatus = "Jellyfin no longer accepts this phone. Sign in again.";
@@ -1697,8 +1940,10 @@ async function runSync(): Promise<void> {
 
 /** Sync when the app comes back to the front or the phone gets a network, at most once a minute. */
 function syncSoon(): void {
+  if (choosingProfile || profileUi.isOpen()) return;
   if (jfSession && Date.now() - lastSyncAt > 60_000) scheduleSync();
   homeSync.autoSoon();
+  computerLink.sync.autoSoon();
 }
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") syncSoon(); });
 window.addEventListener("online", syncSoon);
@@ -1736,7 +1981,9 @@ async function connectJellyfin(host: string): Promise<void> {
     jfCode = "";
     syncStatus = `Signed in to ${session.name}.`;
     refreshSettings();
-    void runSync();
+    // First thing after connecting: who this phone is (a sync before that would use the connecting account).
+    askedWho = true;
+    if (!(await profileUi.open("setup"))) void runSync();
   } catch (error) {
     syncStatus = error instanceof Error ? error.message : "Signing in did not work.";
   } finally {
@@ -1749,8 +1996,10 @@ async function connectJellyfin(host: string): Promise<void> {
 function flagSettings(): HTMLElement {
   const box = el("div");
   box.append(el("h2", undefined, "Problem tracks"));
-  box.append(el("p", "hint", "Flag a song on Now Playing (the flag beside the heart) when it sounds wrong. Flags are sent to your Jellyfin server when you are home, so you can listen to them and fix them at the computer. Only the song is sent, not a reason."));
-  const waiting = flags.filter((f) => f.sent === null).length;
+  const goes = !jfSession ? (computerLink.paired() ? "your computer" : "your computer or Jellyfin server") : computerLink.paired() ? "your computer and Jellyfin server" : "your Jellyfin server";
+  box.append(el("p", "hint", `Flag a song on Now Playing (the flag beside the heart) when it sounds wrong. Flags go to ${goes} when you are home, so you can listen to them and fix them at the computer. Only the song is sent, not a reason.`));
+  // "Waiting to be sent" is about the Jellyfin server; a computer has its own round.
+  const waiting = jfSession || !computerLink.paired() ? flags.filter((f) => f.sent === null).length : 0;
   const list = el("button", "switch-row");
   list.type = "button";
   const text = el("span", "row-text");
@@ -1765,6 +2014,14 @@ function flagSettings(): HTMLElement {
   box.append(el("h2", undefined, "Jellyfin server"));
   if (jfSession) {
     box.append(el("p", "hint", `Signed in to ${jfSession.name} (${jfSession.base.replace("http://", "")}).`));
+    const profile = jfSession.deviceId ? readProfile() : null;
+    const who = el("button", "switch-row");
+    who.type = "button";
+    const whoText = el("span", "row-text");
+    whoText.append(el("span", "row-title", profile ? `Profile: ${profile.name}` : "Choose a profile"), el("span", "row-sub", profile ? "Its own favorites, playlists and play history. Tap to switch." : "Own favorites, playlists and play history for each person."));
+    who.append(whoText, el("span", "chevron", "›"));
+    who.addEventListener("click", () => void profileUi.open(profile ? "switch" : "setup").then((shown) => { if (!shown) toast("The home server did not answer"); }));
+    box.append(who);
     const sync = el("button", "switch-row");
     sync.type = "button";
     const syncText = el("span", "row-text");
@@ -1818,6 +2075,8 @@ function rememberHost(host: string): void {
   try { localStorage.setItem(HOST_STORE, host.trim()); } catch { /* only a convenience */ }
 }
 
+$("#np-more").append(icon("more", { size: 26, filled: true }));
+// The skip and play buttons as on the TV: solid skips, and play or pause in a ring (here the highlight colour, as on the PC).
 $("#np-previous").append(icon("previous", { size: 32, filled: true }));
 $("#np-previous").setAttribute("aria-label", "Previous");
 $("#np-next-button").append(icon("next", { size: 32, filled: true }));
@@ -1849,6 +2108,7 @@ function openPlaying(): void {
   if (!player.id) return;
   $("#playing").hidden = false;
   document.body.classList.add("is-playing-open");
+  playingAccent.setCover(coverColour);
   startVisualizer();
   tick();
 }
@@ -1856,6 +2116,7 @@ function openPlaying(): void {
 function closePlaying(): void {
   $("#playing").hidden = true;
   document.body.classList.remove("is-playing-open");
+  playingAccent.setCover(null); // the chosen colour again outside Now Playing
   if (location.hash) history.replaceState(null, "", location.pathname);
 }
 
@@ -1871,10 +2132,7 @@ function updateNowPlaying(songChanged: boolean): void {
   npRepeat.classList.toggle("is-on", player.repeat !== "off");
   updateFavorite();
   updateFlag();
-  const abA =player.ab_a ?? -1, abB = player.ab_b ?? -1;
-  $("#np-ab").textContent = abA < 0 ? "A-B repeat" : abB < 0 ? `A at ${clock(abA / 1000)}` : `Loop ${clock(abA / 1000)}–${clock(abB / 1000)}`;
-  $("#np-ab").classList.toggle("is-on", abA >= 0);
-  $("#np-sleep").textContent = player.sleep_song ? "Sleep: end of this song" : (player.sleep_ms ?? 0) > 0 ? `Sleep in ${countdown(player.sleep_ms!)}` : "Sleep timer";
+  $("#np-more").classList.toggle("is-on", !!player.sleep_song || (player.sleep_ms ?? 0) > 0);
   if (!track) {
     if (!$("#playing").hidden) closePlaying();
     return;
@@ -1889,6 +2147,7 @@ function updateNowPlaying(songChanged: boolean): void {
     $("#mini-title").textContent = track.title;
     ($("#np-cover") as HTMLImageElement).src = coverUrl(track.id, 800);
     ($("#backdrop-image") as HTMLImageElement).src = coverUrl(track.id, 320);
+    ($("#np-backart") as HTMLImageElement).src = coverUrl(track.id, 800);
     $("#np-title").textContent = track.title;
     $("#np-artist").textContent = track.artist ?? "";
     $("#np-album").textContent = [album?.title ?? track.album, track.year].filter(Boolean).join(" · ");
@@ -1904,12 +2163,6 @@ function updateNowPlaying(songChanged: boolean): void {
       for (const row of view.querySelectorAll<HTMLElement>(".row.song[data-id]")) row.classList.toggle("is-current", row.dataset.id === track.id);
     }
   }
-  const list = queueInPlayOrder(queue, order);
-  const at = list.findIndex((entry) => entry.index === player.index);
-  const next = at >= 0 ? list[at + 1] ?? (player.repeat === "all" ? list[0] : undefined) : undefined;
-  const nextTrack = next ? byId.get(next.id) : undefined;
-  $("#np-next").textContent = nextTrack ? `Next: ${nextTrack.title}${nextTrack.artist ? ` · ${nextTrack.artist}` : ""}` : "";
-  $("#mini-up-next").textContent = nextTrack ? `Next: ${nextTrack.title}` : "";
   tick();
 }
 
@@ -2002,7 +2255,13 @@ function drawVisualizer(now: number): void {
 /** The visualizer's colours from the album cover, as on the TV. */
 function takePalette(id: string): void {
   const image = new Image();
+  const useColour = (colour: [number, number, number] | null): void => {
+    if (player.id !== id) return;
+    coverColour = colour;
+    if (!$("#playing").hidden) playingAccent.setCover(colour);
+  };
   image.onload = () => {
+    useColour(coverAccent(image));
     try {
       const small = document.createElement("canvas");
       small.width = small.height = 24;
@@ -2014,7 +2273,10 @@ function takePalette(id: string): void {
       targetPalette = chosenPalette;
     }
   };
-  image.onerror = () => (targetPalette = chosenPalette);
+  image.onerror = () => {
+    targetPalette = chosenPalette;
+    useColour(null);
+  };
   image.src = coverUrl(id, 96);
 }
 

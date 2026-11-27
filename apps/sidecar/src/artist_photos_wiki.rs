@@ -525,9 +525,14 @@ pub fn write_photos(
         let Some(entry) = results.get(&key(name)).filter(|e| e["status"] == "found") else {
             continue;
         };
-        let Ok(bytes) =
+        // The page sends the photo made to fit a song (`data_base64`); without it the cached file is used as it is,
+        // and refused by the writer if it does not fit.
+        let prepared = artist["data_base64"].as_str().map(str::to_owned);
+        let Some(picture) = prepared.or_else(|| {
             std::fs::read(dir(data_dir).join(entry["file"].as_str().unwrap_or_default()))
-        else {
+                .ok()
+                .map(|bytes| base64(&bytes))
+        }) else {
             continue;
         };
         let paths: Vec<&str> = artist["paths"]
@@ -539,7 +544,7 @@ pub fn write_photos(
         if paths.is_empty() {
             continue;
         }
-        let request = json!({ "paths": paths, "pictures": [{ "kind": "artist_photo", "data_base64": base64(&bytes) }], "batch": batch });
+        let request = json!({ "paths": paths, "pictures": [{ "kind": "artist_photo", "data_base64": picture }], "batch": batch });
         match update_track_media(&request, library_root, data_dir) {
             Ok(reply) => {
                 let results = reply["results"].as_array().cloned().unwrap_or_default();
@@ -557,6 +562,18 @@ pub fn write_photos(
     }
     progress(total, total);
     Ok(json!({ "artists": done_artists, "songs": songs, "problems": problems }))
+}
+
+/// `wiki_photo {name}`: the cached photo of one artist as `{data_base64}`, or `null`, for the page to make fit a song.
+pub fn photo(name: &str, data_dir: &Path) -> Value {
+    load(data_dir)
+        .get(&key(name))
+        .filter(|e| e["status"] == "found")
+        .and_then(|e| std::fs::read(dir(data_dir).join(e["file"].as_str()?)).ok())
+        .map_or(
+            Value::Null,
+            |bytes| json!({ "data_base64": base64(&bytes) }),
+        )
 }
 
 /// `list_wiki_photos`: what the cache holds, for the page.

@@ -2615,3 +2615,225 @@ Registered under the project's MusicBrainz/MetaBrainz account (`MediaVerse.Studi
 ## D203 (2026-11-25): the order of the services to support, and the wording checked at the sources
 
 The owner's order of preference is LRCLIB, gnudb, Jellyfin, MusicBrainz and the MetaBrainz Foundation, Wikimedia, the Internet Archive; the list in Settings > About, the README and the website follows it. Wording was checked against the services' own pages: LRCLIB says it is "always free and nonprofit" and its home page has a "Support LRCLIB" panel (GitHub Sponsors, Buy Me A Coffee, PayPal, with a monthly goal that changes, so no amount is quoted); gnudb's donate page says it "is operated by me as an individual" and its home page says donations do not yet cover its costs; Jellyfin's page says its costs are paid through donations and its "contribute" page is linked from its home page (that page, not an Open Collective address, is what the program opens, so no new site had to be allowed).
+
+## D204 (2026-11-25): the page backdrop no longer shifts between pages, and Review and Library show as much collage as Home and Rip
+
+**Owner's report:** the background collage shifts around between screens and even between Settings tabs (for example Lyrics to Review), as if its border had different dimensions, when it should be edge to edge; Library and Review are much darker than Home and Rip a CD.
+
+**Measured** with `web/app/scripts/measure-backdrop.cjs` (a throwaway data folder and the made-up demo library, 1600 x 1000 window), one reading per page and tab:
+- **The shift.** `.backdrop` was `position: fixed; inset: 0`, which stops at the scrollbar. A page tall enough to scroll has a 15 px scrollbar, so the wall was 1586 px wide with its first tile at x = 10; a page that does not scroll had a 1601 px wall with its first tile at x = 17.7. The whole collage therefore jumped about 7.7 px whenever the scrollbar appeared or went (Review > Flagged does not scroll but Review > Lyrics does; Settings > Library does not scroll but Settings > Lookups does). `layout()` already sized the wall from `window.innerWidth` (scrollbar included), which made the mismatch worse.
+- **The darkness.** On 2026-11-06 Home, Rip and Settings were lightened (a see-through page panel and a shade of 0.62 / 0.5 / 0.7), but an older rule that gave Home, Rip, Review and Settings a heavy shade (0.8 / 0.72 / 0.86) was left in place and still applied to Review, which was never added to the lightening; Library and the artist page had their own 0.78 / 0.68 / 0.84 shade over an 80% dark page panel (about 6% of the collage showed). The backdrop-only reading at the left edge was about 13 to 16 on Home, Rip and Settings but 8.5 to 9 on Review and 9.4 to 10.8 on Library.
+
+**Fix** (`style.css`, branch `fix/backdrop-edge-to-edge`): `.backdrop` is `inset: 0 auto 0 0; width: 100vw` (the full window, scrollbar included, so the wall is the same on every page: 1601.3 px, first tile 17.7, in all 16 readings); the stale heavy rule is deleted; Library, the artist page and Review get the Home/Rip/Settings shade and a half-dark page panel (`rgba(8, 6, 5, 0.5)`). After: Review reads about 13 (was 9) and about 16 over the whole page (was 10); Library about 15 to 18 over the whole page (was 12 to 15).
+
+**Not done:** the library and artist pages still switch `main` to 110rem against 72rem elsewhere, so their content column moves (the backdrop does not); not looked at on the owner's real screen and library; Home (27) remains the brightest because of its large tiles. Not merged: waiting for the GitHub Actions allowance to renew on 2026-12-01.
+
+**D204 addendum, second round (2026-11-25, owner's follow-up):** the first fix made the wall the same on every page but it still did not reach the window's edges: the owner saw a black band about 15 px wide down both sides of every test window (unless covered by the real scrollbar on the right), while Now Playing looked edge to edge. Measured: the grid used fixed 96 px cells (Now Playing 80 px), so 16 columns (1566 px) left 35 px of a 1601 px window, split evenly into 17.7 px black on the left and 17.3 px on the right (up to 97 px at other window widths). Now Playing had the same flaw and only looked full-width at some widths (at 1586 px it started 6 px in and stopped 21 px short). **Fix:** `wallGrid(width, cell, gap)` in `backdrop-plan.ts` chooses a whole number of columns and the exact square cell size that fills the width (cells change by under 4% at 1280 px and wider); `backdrop.ts` and `now-playing.ts` set it as `--wall-cols` and `--wall-cell`, and the stylesheet uses `repeat(var(--wall-cols), 1fr)` with no centring, for both walls; the cells follow the window while it is dragged and the layout is replanned afterwards. **Measured after** (`measure-backdrop.cjs`, 1366x768, 1600x1000 and 1920x1080): black band 0 px on the left and the right edge covered on every page and tab; Now Playing starts at the left edge and stops at the real scrollbar. Unit test added (the grid fills the width exactly for ten window widths).
+
+## D205 (2026-11-26): every song carries its artwork; picture files in folders no longer count
+
+Found by the owner: both phones showed many albums without artwork, while Review > Artwork said every album had a cover.
+Measured on the library: 7,219 of 13,852 MP3s had no picture inside them (every one beside a picture file in its folder),
+and none had an artist photo. The owner's requirement: every song carries its album's artwork, the same across the album,
+prepared as in D62, with the rear cover and artist photo where possible.
+
+- **Causes.** (1) The library check (since D30) counted a picture file in the folder as a cover, so those albums were
+  never listed and Automatic covers skipped them; a unit test asserted that rule. (2) No library-wide step ever put folder
+  pictures into songs (only "Put in the songs", one album at a time, D62). (3) The tag writer refused any tag over 4 MB
+  (118 songs in 11 folders, one huge picture each, up to 12.4 MB), and the check ignored tags over 12 MB. (4) Automatic
+  covers did not report songs it failed to write. The 5 November run journalled 82 picture writes that are not in the
+  files; the 4 MB limit reproduces the failure on one of those albums, the rest write correctly on copies today and why
+  they failed then is not known.
+- **The rule now:** an MP3 has a cover only with a front cover inside it. Other formats keep the folder file (D15).
+- **Review > Artwork > In every song** (replaces Missing): plans per album (songs of one folder with one album name) from
+  the pictures already there. One picture in some songs goes to the others; none in the songs takes the folder file
+  (`cover`, `folder`, `front`, the largest; `back`; `artist`, also from the artist folder, else the artist's other albums;
+  never onto compilations). The person chooses when the songs differ, a tiny embedded picture has a larger folder one, or
+  the folder holds several albums or unnamed songs. Pictures breaking D62 are re-encoded and then written to every song of
+  the album. Preview with thumbnails, one album or all, Stop, problems listed per song, Undo (one journal per album).
+- **Online lookups** only for albums with no picture anywhere; they now also look for missing rear covers.
+- Tag size limit 32 MB. Undo can restore a picture larger than the limit for new ones.
+- **Checked** on copies of 92 affected songs in the real app: 92 written, audio and all other tags byte-identical, Undo
+  restored every picture. Read-only run on a copy of the whole library: 539 albums (7,188 songs) ready, 33 choices.
+  **Not yet run on the owner's library**, and phone re-sync of changed songs is untried.
+
+## D206 (2026-11-26): long artwork jobs run five minutes at a time or unattended; what the tags really hold; OneTagger reviewed
+
+Owner: no operation may mean an unplanned wait of ten minutes or more; long ones show progress and offer five minutes'
+worth or the whole library unattended. Also asked: why tags exceed 4 MB, and what OneTagger does.
+
+- **One long-run mechanism** (`timed-run.ts`, `run-controller.ts`) for adding pictures, Oversized fix, automatic covers,
+  Wikimedia photo look-up and writing, Jellyfin photos, and their Undo: progress bar with time so far and time left,
+  Stop, "5 minutes' worth" (ends between albums) or "Everything, unattended". One library-changing job at a time. The
+  computer is kept from sleeping during a run. Five failures in a row stop a run (the share has gone). Unattended
+  automatic covers wait 15 minutes when MusicBrainz refuses, up to 8 times.
+- **Undo** is one history of runs, each a journal per album or artist, so no request is long (the app gives up on a
+  request after 10 minutes) and undoing can also be done in five-minute pieces.
+- Fixed: shrinking a picture from the songs now keeps the full size in the folder whenever the folder has nothing as large
+  (D62); D205 skipped it when the folder had any picture.
+- The library check on the share took 66 s the first time and 9.5 s after.
+- **Not covered:** Lyric AI, lyrics lookup, defect scan, album IDs, loudness and the other long jobs outside artwork.
+
+**Tag audit** (13,846 songs on the 2026-11-24 backup, read only): the 118 tags over 4 MB each hold one embedded picture
+of 4.5 to 12.4 MB (2000 to 4438 pixels, stored as type "Other"), 11 albums; their other frames total 60 KB. No other tag
+exceeds 1 MB. Other findings, **not yet fixed, owner to decide**: 566 JPEG pictures labelled `image/png`; ID3v1 tags on
+10,048 songs, the title differing from ID3v2 on 2,130; APEv2 tags on 94; Lyrics3 on 15; one song with ID3v2.2 frames
+inside its v2.3 tag (this program cannot edit it); 34 songs with two year frames; 10 songs with 518 stray bytes between
+tag and audio; about 4 MB of other programs' private frames.
+
+**OneTagger** (Marekkon5/onetagger at 36523f7, 2026-02-13; GPL v3 text, no "or later" statement found): an auto-tagger
+for DJs that matches files to online catalogues. ID3 through the `id3` crate (it pins 1.16.3; behaviour read in 1.17.2):
+saved in place, no temporary copy, verification or undo seen; with tagging, an unreadable tag is replaced by a new empty
+one; downloaded art is embedded unresized and labelled JPEG; no clean-up of oversized or junk tags was found. Worth
+considering later: album-level matching and the duration check. Nothing copied; no dependency added.
+
+## D207 (2026-11-26): pictures in songs are always JPEG within 1000 pixels; the phone syncs into the Music folder
+
+Owner: the oversized-image fix clearly did not happen; resize oversize pictures, also when choosing album artwork; store
+artwork as JPEG; include the background fix; the phone should save into the Music folder itself, with an option to
+overwrite local versions; a new-user setup wizard later.
+
+- **Why the fix had not happened:** the 118 songs with oversize pictures all had tags over 4 MB, which the check could not
+  read (D205), so they were never listed. Every other picture in the library was within 1000 pixels.
+- **One rule at the writer:** a new picture put inside a song must be a JPEG of at most 1000 × 1000 pixels (and under
+  500 KB, as before); PNG and larger ones are refused. Every path that copies a picture prepares it first (album
+  match-up, Jellyfin and Wikimedia artist photos, the artwork tools). Undo may restore what a song had.
+- **Oversized images** now fixes each song's own picture (the old tool wrote the album's first picture to every song of
+  the folder), lists a JPEG labelled as something else (581 songs: the label alone is corrected), and saves PNG picture
+  files in album folders (10) as full-size JPEG, moving the PNG into the program's data folder. In every song also
+  resizes pictures all the songs already share.
+- **D204 merged** (background edge to edge). Now Playing still shows the underlying page's scrollbar at the right.
+- **Phone:** downloads go to `Music/Artist/Album`; ownership decides what may be deleted (it was the folder); songs in
+  `Music/MediaVerse Home` are moved at the next sync; "Replace phone copies with the library's versions" (off by
+  default); five minutes' worth or everything, with a progress bar. A choice of the server's version now also applies to
+  a copy of the same size. Android's permission is asked in groups of 500 and not again once refused.
+- **Checked:** on copies of every affected album (915 songs): 685 broke the rules before, none after; audio and other
+  tags unchanged; Undo put the pictures back (a corrected label stays corrected). On an Android 17 emulator with a
+  stand-in server: the move from the old folder (a taken name was not overwritten), recognising a differing copy, the
+  overwrite with Android's prompt, an update from the server, and removal taking only the app's own songs. Found there
+  and fixed: the page never received the move's reply. **Not tried:** a real phone, a real Jellyfin server, the
+  Jellyfin artist photos and album match-up paths.
+- **Found, not changed:** when the last choice is removed, the songs the app fetched stay on the phone until something
+  else is chosen.
+
+## D208 (2026-11-26): the phone's playback screen, simpler, with more room for lyrics
+
+Owner's feedback after using the Android app.
+
+- **Lyrics:** the line being sung grows a little, and was wide enough already to run off both sides. Every line now keeps
+  room at its sides (and a very long word may break), so the grown line fits.
+- **Cover behind the lyrics:** while lyrics show, the album cover fills the screen behind them, faded, darker at the top
+  and bottom. The text has a shadow and brighter colours. The album line is dropped and the controls are smaller.
+- **Colour:** while Now Playing is open the highlight colour is the playing cover's own (the PC's `src/accent.ts`, the
+  TV's rule); elsewhere it is the colour chosen in Settings.
+- **Buttons:** solid skip icons and play or pause in a ring, as on the TV; the ring takes the highlight colour.
+- **Three dots** (top right) hold Lyrics on or off, Sleep timer, Equalizer, Add to playlist, Open playlists and
+  Bookmarks. The row of text buttons is gone. The dots light while a sleep timer runs.
+- **Bookmarks stay, in the menu:** some podcast apps offer them (Pocket Casts, Podbean). MediaVerse has no podcast
+  playback; the existing ones are per song, kept on the phone.
+- **Removed:** A-B repeat (D112 kept it), and the "Next: ..." line on Now Playing and the bottom bar. Android Auto takes
+  the coming songs from the media session, which is unchanged.
+- Landscape: the cover now fits the height left for it, and long menus fit the screen and scroll.
+- **Checked** on an Android emulator with a made-up song with long synced lines: both orientations, every menu entry.
+  **Not tried:** a real phone, Android Auto, a TV while casting.
+
+## D209 (2026-11-26): the Artwork page no longer says all is well over nothing, or shows unread pictures as broken
+
+Owner: the Artwork page first showed nothing to do, and the right numbers only after "Check the library again"; then
+pictures showed as broken for some minutes.
+
+- A check that read no songs, or none that are in the song list, now says that nothing was checked. A music folder that
+  cannot be read is an error and leaves the remembered check alone. The same on the Lyrics page. (Which of the two
+  happened on the owner's computer is not recorded anywhere; both led to the same empty page.)
+- The small pictures offered on "In every song" showed their description with a broken-picture mark until read, and
+  were read one at a time behind whatever else was waiting. They now show an empty square, are read in the picture lane
+  beside the covers, and are asked for again after a failure.
+- The first check after D207 reads every song again (the remembered facts changed shape), so it takes minutes once.
+
+## D210 (2026-11-26): one set of playback buttons; phone lyrics start in the middle and get the width in landscape
+
+Owner, after trying D208.
+
+- **PC:** solid skip icons and play or pause in a ring, as on the TV and the phone; the mini player draws the same
+  icons in place of text symbols. The orange frame round shuffle, repeat, favorite, flag and the TV button when on is
+  gone: they take the highlight colour. So are the grey boxes round the seek and volume bars.
+- **Phone lyrics:** the first line started above the middle and the highlight walked down to it. As on the PC and TV
+  (D126), the line being sung is in the middle from the start, line 1 waiting there before the singing, and it is
+  centred again when the screen opens or the phone turns.
+- **Phone landscape with lyrics:** lyrics take the left and wider side for the whole height; names and controls keep to
+  a column on the right (about a third).
+
+## D211 (2026-11-26): songs with old iTunes frame names can be written; the TV play ring takes the highlight colour
+
+- A song was refused ("a frame has an invalid name"): iTunes 10 had left three-letter ID3v2.2 names ("TT2", "PIC")
+  inside a 2.3 tag, and a stray zero byte before the picture. The reader now takes these names as their present ones
+  (the picture converted), so the song's pictures and words can be read and written; a save writes proper names and
+  keeps every other frame and the audio as they are. Names with no equivalent (CRM, LNK) are still refused. Checked on
+  a copy of the song; the library file is changed only by the app's own run.
+- **TV:** the ring round play or pause takes the highlight colour, as on the PC and phone (was white).
+- **Android Auto**, from the owner's car: it draws its own transport buttons (the oval play button), player layout and
+  the button back to the player; an app supplies the names, picture, queue and its extra buttons only. It has no
+  "up next" line: showing one would mean putting it in place of other text. Not changed; the owner to choose.
+
+## D212 (2026-11-26): the lyrics editor opens at once and says where it is looking; a web search when nothing is found
+
+Owner: the editor sat on "Loading the lyrics..." for several minutes.
+
+- **Cause:** the program answers most requests one at a time, and the lyric requests waited in that line. The play
+  history of that afternoon was written minutes late too. Which request held the line is not recorded.
+- Reading a song's lyrics and starting a lookup now go in the lane that never waits behind that line (with the
+  player's requests). Saving stays in the line, and says so when it has to wait.
+- A request that waits or runs 10 seconds or more in the line is now written to `slow-requests.log` beside the
+  program's records: time, command name and seconds only.
+- The editor is shown at once. It says it is looking in the song and a `.lrc` file beside it; with nothing there it
+  asks LRCLIB by itself (when online lyrics are on in Settings) and counts the seconds. Words typed or pasted
+  meanwhile are never replaced: what arrives is added to the list to choose from.
+- **Search online** with nothing found opens a Google search (artist, album, song, "lyrics") in the browser; **Search
+  the web** does so at any time. Opening the editor never opens the browser by itself.
+- **Checked** in a throwaway copy with made-up songs and a made-up slow lyrics service. Not tried against LRCLIB or
+  a busy library.
+
+## D213 (2026-11-26): profiles on the Jellyfin server
+
+Owner approved. The design and what Jellyfin 12.4 was seen to do are in `docs/profiles-plan.md`.
+
+- A profile is a user with no password who is not an administrator, made by the app with the administrator's name and
+  password (asked once, not kept), listed on the sign-in screen, remote access off (chosen here so a passwordless user
+  is reachable only from home; a later VPN may need Jellyfin told which addresses count as home).
+- Each profile on a device signs in under its own device name, so one does not sign another out.
+- Playlists are made private. The flag lists are shared with every user to change; whoever may change them adds users
+  who are missing. A flag list another user made is emptied, since only its owner may delete it.
+- Moving to a profile of one's own copies favorites and playlists; nothing is deleted. The old account's public playlists can
+  be made private, so profiles do not show each twice.
+
+## D214 (2026-11-26): phones keep in step with the computer over Wi-Fi, no server needed
+
+Owner asked, after rejecting storing data in Jellyfin's display settings: no tricks with Jellyfin, everything working
+with only the computer app, and library sync over Wi-Fi when there is no server. Order approved: Wi-Fi sync first.
+Design and limits in `docs/wifi-sync.md`.
+
+- The sharing server (D38) gains `/api/sync/*` for devices paired as phones: song list, favorites, flags, playlists
+  both ways, and new music into "MediaVerse Incoming" when the owner allows it.
+- The phone uses the Jellyfin sync rules with the computer as a second source, each with its own record.
+- Found on the emulator and fixed, also for the Jellyfin syncs already installed: a song that arrived on a device
+  after its heart or playlist entry did was read as removed there, and removed from the server's list. Only what both
+  sides held is remembered now.
+- The settings section "TV" is now called "TV & Phone Pairing" (owner, after trying the pairing).
+
+## D215 (2026-11-26): our own Jellyfin plugin (test version)
+
+Owner approved a test. `apps/jellyfin-plugin`: profiles without extra Jellyfin users, a shared problem list and new
+music, through Jellyfin's plugin system, data in the plugin's own folder. GPL-3.0-or-later, built against
+`Jellyfin.Controller` and `Jellyfin.Model` 12.4.0 with the .NET 10 SDK. Installable by adding a repository address;
+where that is hosted is not decided. Replaces D213's profiles-as-users once the apps use it.
+
+- Owner approved installing it on the home server (step 1) and then the phone sending new music to it (step 2), both
+  2026-11-26. Uploads wait in a folder outside the music library for the owner to look over.
+
+## D216 (2026-11-26): 0.9.1, the second beta
+
+Owner's choice: the beta takes everything built since 0.9.0 (D204 to D215), not only the playlist fix. Under D214:
+in 0.9.0 a song that became available on a device after its playlist had synced was removed from the Jellyfin
+playlist at the next sync; a record made by 0.9.0 removes nothing for its first round. "Not now" to the first
+profile question is now remembered. Wi-Fi sync, profiles and the Jellyfin plugin have had little use on real
+devices; the release notes say so. The fix alone is kept on the branch `hotfix/playlist-removal`.

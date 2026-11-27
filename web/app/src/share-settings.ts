@@ -1,6 +1,7 @@
-// Settings > TV: share the library with the MediaVerse Studio TV app on the home network (D38, D39). Off until
-// switched on here. A TV finds this computer by itself; pairing it once takes a one-time 6-digit code that this
-// page shows (in a window over whatever page is open) when the TV asks. Paired TVs are listed and can be removed.
+// Settings > TV & Phone Pairing: share the library with the MediaVerse Studio apps on the home network (D38, D39): the TV app plays it,
+// and the phone app keeps music, favorites, flags and playlists in step with it (D214). Off until switched on here.
+// Pairing a TV or phone once takes a one-time 6-digit code that this page shows (in a window over whatever page is
+// open) when the device asks. Paired devices are listed and can be removed.
 
 import type { ShareStatus } from "./desktop-bridge";
 
@@ -17,22 +18,26 @@ export function initShareSettings(root: HTMLElement): void {
   const share = window.mediaVerse?.share;
   root.classList.add("settings-block");
   root.innerHTML = `
-    <h3>Play on the TV</h3>
-    <p>The MediaVerse Studio TV app can play this library on a TV in your home. While sharing is on, TVs you have
-      paired can list and play your music, and see covers and lyrics. Nothing can be changed from the TV, and your
-      folders are never shown. Devices outside your home network are always refused.</p>
-    <label class="check"><input id="share-enabled" type="checkbox" /> <span>Share my library with the TV app</span></label>
+    <h3>TV &amp; Phone Pairing</h3>
+    <p>The MediaVerse Studio apps can use this library in your home: a TV plays it, and a phone keeps chosen music,
+      favorites, flags and playlists in step with it over Wi-Fi. While sharing is on, only devices you have paired can
+      reach it; your folders are never shown, and devices outside your home network are always refused. A TV can only
+      flag songs and mark favorites.</p>
+    <label class="check"><input id="share-enabled" type="checkbox" /> <span>Share my library with my TVs and phones</span></label>
     <div id="share-details" hidden>
-      <p class="field-hint">On the TV, open MediaVerse Studio and choose this computer from the list. A 6-digit code
-        then appears here; type it on the TV once. If the TV does not find this computer, choose "Type an address"
-        on the TV and enter <strong id="share-address"></strong>.</p>
-      <p><button id="share-arm" type="button">Pair a TV</button></p>
-      <p id="share-armed" class="field-hint" hidden>Waiting for a TV. On the TV, open MediaVerse Studio and choose this computer. This wait lasts five minutes.</p>
-      <p class="field-label">Paired TVs</p>
+      <p class="field-hint">Press Pair a TV or phone, then on the TV choose this computer, or on the phone open Settings >
+        Your computer. A 6-digit code appears here; type it on the device once. If it does not find this computer, enter
+        the address <strong id="share-address"></strong> on the device.</p>
+      <p><button id="share-arm" type="button">Pair a TV or phone</button></p>
+      <p id="share-armed" class="field-hint" hidden>Waiting for a TV or phone to ask. This wait lasts five minutes.</p>
+      <p class="field-label">Paired devices</p>
       <ul id="share-devices" class="share-devices"></ul>
+      <label class="check"><input id="share-uploads" type="checkbox" /> <span>Let paired phones send new music to this computer</span></label>
+      <p class="field-hint">New music waits in the folder "MediaVerse Incoming" in your user folder, for you to look over
+        and add to the library. Nothing already there is written over. <button id="share-incoming" class="secondary" type="button">Open the folder</button></p>
       <div id="share-firewall" class="result-warning" hidden>
-        <p>Windows Firewall is turning TVs away on this network, so they cannot find this computer.</p>
-        <button id="share-firewall-allow" type="button">Let TVs reach this computer</button>
+        <p>Windows Firewall is turning TVs and phones away on this network, so they cannot reach this computer.</p>
+        <button id="share-firewall-allow" type="button">Let TVs and phones reach this computer</button>
         <p class="field-hint">Adds one rule: MediaVerse Studio, the sharing port only, private (home) networks only.
           Windows asks for permission first.</p>
       </div>
@@ -43,6 +48,7 @@ export function initShareSettings(root: HTMLElement): void {
   const address = root.querySelector<HTMLElement>("#share-address")!;
   const devices = root.querySelector<HTMLUListElement>("#share-devices")!;
   const status = root.querySelector<HTMLElement>("#share-status")!;
+  const uploads = root.querySelector<HTMLInputElement>("#share-uploads")!;
   const firewallBox = root.querySelector<HTMLElement>("#share-firewall")!;
   const firewallAllow = root.querySelector<HTMLButtonElement>("#share-firewall-allow")!;
 
@@ -56,11 +62,11 @@ export function initShareSettings(root: HTMLElement): void {
   prompt.id = "pair-dialog";
   prompt.setAttribute("aria-labelledby", "pair-title");
   prompt.innerHTML = `
-    <h2 id="pair-title">Pair a TV</h2>
+    <h2 id="pair-title">Pair a device</h2>
     <p id="pair-who"></p>
     <p class="pair-code" id="pair-code"></p>
-    <p class="field-hint">The code works once and for five minutes. If you did not just choose this computer on a TV,
-      press Refuse.</p>
+    <p class="field-hint">The code works once and for five minutes. If you did not just choose this computer on a TV or
+      phone, press Refuse.</p>
     <div class="dialog-actions"><button id="pair-refuse" class="secondary" type="button">Refuse</button></div>`;
   document.body.append(prompt);
   const who = prompt.querySelector<HTMLElement>("#pair-who")!;
@@ -69,6 +75,7 @@ export function initShareSettings(root: HTMLElement): void {
   function show(state: ShareStatus): void {
     checkbox.checked = state.enabled;
     details.hidden = !state.enabled;
+    uploads.checked = state.uploads === true;
     address.textContent = state.addresses.length ? state.addresses.join(" or ") : "(no home network found)";
     devices.innerHTML = state.devices.length
       ? state.devices
@@ -89,7 +96,9 @@ export function initShareSettings(root: HTMLElement): void {
     const armed = root.querySelector<HTMLElement>("#share-armed");
     if (armed) armed.hidden = !state.pairing_armed || !!state.pairing;
     if (state.pairing) {
-      who.textContent = `${state.pairing.name} wants to play your library. Type this code on the TV:`;
+      who.textContent = state.pairing.phone
+        ? `${state.pairing.name}, a phone, wants to keep music, favorites, flags and playlists in step with this computer. Type this code on the phone:`
+        : `${state.pairing.name} wants to play your library. Type this code on the TV:`;
       pairCode.textContent = spacedCode(state.pairing.code);
       if (!prompt.open) prompt.showModal();
     } else if (prompt.open) {
@@ -123,10 +132,14 @@ export function initShareSettings(root: HTMLElement): void {
     const open = await share.firewallAllow?.().catch(() => false);
     firewallAllow.disabled = false;
     firewallBox.hidden = !!open;
-    if (!open) status.textContent = "The firewall still turns TVs away (the permission prompt was refused or closed).";
-    else status.textContent = "TVs can reach this computer now. On the TV, choose Search again.";
+    if (!open) status.textContent = "The firewall still turns devices away (the permission prompt was refused or closed).";
+    else status.textContent = "TVs and phones can reach this computer now. On the device, try again.";
   });
 
+  uploads.addEventListener("change", () => {
+    if (share.setUploads) run(() => share.setUploads!(uploads.checked));
+  });
+  root.querySelector("#share-incoming")?.addEventListener("click", () => void share.openIncoming?.());
   checkbox.addEventListener("change", () => {
     firewallChecked = false;
     run(() => share.setEnabled(checkbox.checked));

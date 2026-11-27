@@ -11,9 +11,13 @@ import { chunk, describePlan, libraryArtists, planPhotos, type PhotoPlan } from 
 import { invoke, listen } from "./desktop-bridge";
 import { el } from "./dom";
 import { initWikiPhotos } from "./wiki-photos-block";
+import { describeEnd, history, modeButtons, onRunChange, startRun } from "./run-controller";
+import type { RunMode } from "./timed-run";
 import { desktopJellyfin, savedDesktopSession } from "./jellyfin-desktop";
 import type { LibrarySong } from "./library-format";
 import { PICTURE_LIMITS, picturesRequest } from "./media-request";
+import { fitForSong } from "./image-prep";
+import { blobFromBase64 } from "./cover-util";
 
 export type ArtistsPanelDeps = {
   songs: () => LibrarySong[];
@@ -231,7 +235,7 @@ export function initArtistsPanel(root: HTMLElement, deps: ArtistsPanelDeps): { s
   let toWrite: PhotoPlan["matches"] = [];
   let already = 0;
   let working: { stopped: boolean } | null = null;
-  let lastPhotos: { batch: string; text: string } | null = null;
+
   let status = "";
 
   function signedIn(): boolean {
@@ -257,7 +261,10 @@ export function initArtistsPanel(root: HTMLElement, deps: ArtistsPanelDeps): { s
       // Artists whose songs already carry an Artist picture are left alone unless asked.
       toWrite = [];
       already = 0;
-      for (const match of plan.matches) {
+      for (const [index, match] of plan.matches.entries()) {
+        if (working.stopped) break;
+        status = `Checking which artists already have a photo: ${index + 1} of ${plan.matches.length}`;
+        drawPhotos();
         const first = await invoke<{ from: string } | null>("track_artist_photo", { path: match.artist.paths[0] }).catch(() => null);
         const last = match.artist.paths.length > 1 ? await invoke<{ from: string } | null>("track_artist_photo", { path: match.artist.paths[match.artist.paths.length - 1] }).catch(() => null) : first;
         if (first?.from === "embedded" && last?.from === "embedded") already++;
@@ -273,87 +280,63 @@ export function initArtistsPanel(root: HTMLElement, deps: ArtistsPanelDeps): { s
     }
   }
 
-  /** A photo no bigger than a song may carry: Jellyfin is asked for smaller ones until it fits. */
+  /** The artist's photo from the server, made to fit a song (a JPEG within 1000 pixels and the size limit). */
   async function fetchPhoto(source: ServerArtist): Promise<string | null> {
     const session = savedDesktopSession();
     if (!session) return null;
-    const jf = desktopJellyfin();
-    for (const width of [PICTURE_LIMITS.maxSide, 700, 500]) {
-      const data = await jf.artistPhoto(session, source, width);
-      if (!data) return null;
-      if ((data.length * 3) / 4 <= PICTURE_LIMITS.maxBytes) return data;
-    }
-    return null;
+    const data = await desktopJellyfin().artistPhoto(session, source, PICTURE_LIMITS.maxSide);
+    return data ? fitForSong(blobFromBase64(data, "image/jpeg")) : null;
   }
-
-  async function write(): Promise<void> {
+  function write(mode: RunMode): void {
     if (working || !plan) return;
     const list = replaceBox.checked ? plan.matches : toWrite;
     if (!list.length) return;
     const songs = list.reduce((sum, m) => sum + m.artist.paths.length, 0);
-    if (!confirm(`Write the Jellyfin photo of ${plural(list.length, "artist")} into ${plural(songs, "song")} as their Artist picture?\n\nOnly the tags of those songs change (the music is untouched, and each file is checked before it replaces the old one). You can undo this from here.`)) return;
-    working = { stopped: false };
-    const mine = working;
-    const batch = `artistphotos-${Date.now()}`;
+    if (!confirm(`Write the Jellyfin photo of ${plural(list.length, "artist")} into ${plural(songs, "song")} as their Artist picture?\n\nOnly the tags of those songs change (the music is untouched, and each file is checked before it replaces the old one). You can undo this.`)) return;
+    const id = `artistphotos-${Date.now()}`;
     let done = 0;
     let songsDone = 0;
     const problems: Problem[] = [];
     const skipped: string[] = [];
-    try {
-      for (const match of list) {
-        if (mine.stopped) break;
-        status = `Artist ${done + 1} of ${list.length}: ${match.artist.name}`;
-        drawPhotos();
+    status = "";
+    void startRun({
+      title: "Writing artist photos from Jellyfin",
+      unit: "songs",
+      mode,
+      items: list.map((match, index) => ({ match, batch: `${id}-${index}` })),
+      size: ({ match }) => match.artist.paths.length,
+      label: ({ match }) => match.artist.name,
+      step: async ({ match, batch }, tools) => {
         const photo = await fetchPhoto(match.source);
         if (!photo) {
           skipped.push(match.artist.name);
-          done++;
-          continue;
+          return "ok";
         }
         deps.stopIfPlaying(match.artist.paths);
+        history.add(id, "Jellyfin artist photos", batch);
+        let ok = 0;
         for (const paths of chunk(match.artist.paths, PATHS_PER_CALL)) {
+          if (tools.stopped()) break;
           const reply = await invoke<{ results: Array<{ path: string; ok: boolean; error?: string }> }>("update_track_media", picturesRequest(paths, [{ kind: "artist_photo", base64: photo }], [], batch));
           for (const result of reply.results) {
-            if (result.ok) songsDone++;
+            if (result.ok) ok++;
             else problems.push({ path: result.path, message: result.error ?? "it failed" });
           }
+          tools.advance(paths.length);
         }
-        done++;
-      }
-      lastPhotos = songsDone ? { batch, text: `${plural(done - skipped.length, "artist")}, ${plural(songsDone, "song")}` } : null;
-      const text = `${mine.stopped ? "Stopped. " : ""}Wrote ${plural(done - skipped.length, "artist photo")} into ${plural(songsDone, "song")}.${skipped.length ? ` No usable picture for ${skipped.slice(0, 5).join(", ")}${skipped.length > 5 ? "…" : ""}.` : ""}`;
+        songsDone += ok;
+        if (ok) done++;
+        return ok === 0 && !tools.stopped() ? "failed" : "ok";
+      },
+    }).then((result) => {
+      if (!result) return;
+      const text = `Wrote ${plural(done, "artist photo")} into ${plural(songsDone, "song")}. ${describeEnd(result, plural(result.left, "artist"))}${skipped.length ? ` No usable picture for ${skipped.slice(0, 5).join(", ")}${skipped.length > 5 ? "…" : ""}.` : ""}`;
       photosNote.replaceChildren(report(text, problems));
       if (songsDone) deps.changed("Artist photos were saved.");
-      status = "";
-    } catch (error) {
-      photosNote.replaceChildren(report(`Stopped: ${jellyfinMessage(error)}`, problems));
-      if (songsDone) lastPhotos = { batch, text: `${plural(songsDone, "song")}` };
-      status = "";
-    } finally {
-      working = null;
       plan = null; // look again: what is already written is skipped
       drawPhotos();
-    }
+    });
   }
-
-  async function undoPhotos(): Promise<void> {
-    if (!lastPhotos || working) return;
-    const { batch } = lastPhotos;
-    working = { stopped: false };
-    try {
-      const reply = await invoke<{ songs: number; problems: Problem[] }>("undo_picture_batch", { batch });
-      lastPhotos = null;
-      photosNote.replaceChildren(report(`Took the artist photos back out of ${plural(reply.songs, "song")}.`, reply.problems));
-      deps.changed("Artist photos were removed again.");
-    } catch (error) {
-      photosNote.replaceChildren(report(`Could not undo: ${errorText(error)}`));
-    } finally {
-      working = null;
-      plan = null;
-      drawPhotos();
-    }
-  }
-
   function drawPhotos(): void {
     photosActions.replaceChildren();
     const message = el("p", "field-hint", status);
@@ -377,14 +360,7 @@ export function initArtistsPanel(root: HTMLElement, deps: ArtistsPanelDeps): { s
         photosActions.append(looking);
         if (plan && (toWrite.length || (replaceBox.checked && plan.matches.length))) {
           const count = replaceBox.checked ? plan.matches.length : toWrite.length;
-          const go = button(`Write ${plural(count, "photo")} into the songs`, "");
-          go.addEventListener("click", () => void write());
-          photosActions.append(go);
-        }
-        if (lastPhotos) {
-          const undo = button(`Undo: ${lastPhotos.text}`);
-          undo.addEventListener("click", () => void undoPhotos());
-          photosActions.append(undo);
+          photosActions.append(modeButtons(`Write ${plural(count, "photo")} into the songs:`, (mode) => write(mode)));
         }
       }
       const label = el("label", "artist-replace");
@@ -399,7 +375,11 @@ export function initArtistsPanel(root: HTMLElement, deps: ArtistsPanelDeps): { s
     photosBlock.replaceChildren(...parts);
   }
 
-  const wiki = initWikiPhotos({ songs: deps.songs, changed: deps.changed, stopIfPlaying: deps.stopIfPlaying });
+  const wiki = initWikiPhotos({ songs: deps.songs, changed: deps.changed, stopIfPlaying: deps.stopIfPlaying, undo: true });
+  onRunChange(() => {
+    wiki.redraw();
+    drawPhotos();
+  });
   root.replaceChildren(namesBlock, wiki.element, photosBlock);
 
   return {

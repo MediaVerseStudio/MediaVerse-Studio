@@ -15,12 +15,14 @@ import java.net.URL
 
 /**
  * Keeping chosen music on the phone in step with the home Jellyfin server (D177). The page decides what to keep and asks for each song here: this fetches one song from
- * a server on the home network into the phone's Music folder (under "Music/MediaVerse Home/Artist/Album/"), through the media index so Android knows the song at once, and
- * takes songs off again. It only ever deletes songs it put there (checked by folder), never the person's other music.
+ * a server on the home network into the phone's Music folder ("Music/Artist/Album/", D207), through the media index so Android knows the song at once, and
+ * takes songs off again. It only ever deletes songs it put there (Android records which app created a file), never the person's other music.
  */
 object HomeSync {
-    /** The folder under the phone's storage that holds what was fetched from the server. */
-    const val ROOT = "Music/MediaVerse Home"
+    /** The folder under the phone's storage that fetched music goes into: the Music folder itself (owner, 2026-11-26). */
+    const val ROOT = "Music"
+    /** Where earlier versions put it; what is there is moved up into [ROOT]. */
+    const val OLD_ROOT = "Music/MediaVerse Home"
     private val EXTENSIONS = setOf("mp3", "flac", "m4a", "aac", "ogg", "opus", "wav", "wma", "wv")
 
     /** Whether the phone is on Wi-Fi now, and whether that connection is metered (a phone's own hotspot, say). */
@@ -129,10 +131,76 @@ object HomeSync {
         }
     }
 
-    /** Whether a media-index row is a song this app fetched (its folder is under [ROOT]). */
+    /** Whether a song is one this app fetched: Android says this app created it, or it is still in the old download folder. */
+    fun ownedByApp(owner: String?, folder: String?, packageName: String): Boolean = owner == packageName || folder?.startsWith("$OLD_ROOT/") == true
+
     private fun isOurs(context: Context, id: Long): Boolean {
-        val cursor = context.contentResolver.query(uriOf(id), arrayOf(MediaStore.Audio.Media.RELATIVE_PATH), null, null, null) ?: return false
-        cursor.use { c -> return c.moveToFirst() && c.getString(0)?.startsWith("$ROOT/") == true }
+        val columns = arrayOf(MediaStore.MediaColumns.OWNER_PACKAGE_NAME, MediaStore.Audio.Media.RELATIVE_PATH)
+        val cursor = context.contentResolver.query(uriOf(id), columns, null, null, null) ?: return false
+        cursor.use { c -> return c.moveToFirst() && ownedByApp(c.getString(0), c.getString(1), context.packageName) }
+    }
+
+    /** Where a folder of the old download folder belongs now ("Music/MediaVerse Home/Band/Record/" is "Music/Band/Record/"), or null when it is not one. */
+    fun movedFolder(folder: String): String? = if (folder.startsWith("$OLD_ROOT/")) "$ROOT/" + folder.removePrefix("$OLD_ROOT/") else null
+
+    /** The names to try for a song whose own name is taken in the folder it moves to. */
+    fun spareNames(name: String): List<String> {
+        val dot = name.lastIndexOf('.')
+        val (stem, end) = if (dot > 0) name.substring(0, dot) to name.substring(dot) else name to ""
+        return listOf(name) + (2..9).map { "$stem ($it)$end" }
+    }
+
+    /**
+     * Moves what earlier versions fetched into "Music/MediaVerse Home" up into the Music folder. Each song keeps its media id, so hearts,
+     * flags, play counts and playlists stay with it. Nothing is deleted; folders left empty are removed. Answers
+     * `{type: "movedToRoot", id, moved, failed, needPermission: [ids Android wants the person's permission for]}`.
+     */
+    fun moveToRoot(context: Context, id: String, progress: (done: Int, total: Int) -> Unit): JSONObject {
+        val found = ArrayList<Triple<Long, String, String>>()
+        try {
+            context.contentResolver.query(
+                MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                arrayOf(MediaStore.Audio.Media._ID, MediaStore.Audio.Media.RELATIVE_PATH, MediaStore.Audio.Media.DISPLAY_NAME),
+                "${MediaStore.Audio.Media.RELATIVE_PATH} LIKE ?", arrayOf("$OLD_ROOT/%"), null,
+            )?.use { c -> while (c.moveToNext()) found += Triple(c.getLong(0), c.getString(1) ?: "", c.getString(2) ?: "") }
+        } catch (_: SecurityException) {
+            // no permission to read music yet: there is nothing this app can move
+        }
+        var moved = 0
+        var failed = 0
+        val needPermission = JSONArray()
+        for ((index, song) in found.withIndex()) {
+            val (songId, folder, name) = song
+            val target = movedFolder(folder) ?: continue
+            if (index % 10 == 0) progress(index, found.size)
+            var done = false
+            for (candidate in spareNames(name)) {
+                // A file already there keeps its name; the moved song takes the next free one.
+                if (java.io.File(android.os.Environment.getExternalStorageDirectory(), "$target$candidate").exists()) continue
+                try {
+                    val values = ContentValues().apply {
+                        put(MediaStore.Audio.Media.RELATIVE_PATH, target)
+                        put(MediaStore.Audio.Media.DISPLAY_NAME, candidate)
+                    }
+                    done = context.contentResolver.update(uriOf(songId), values, null, null) > 0
+                } catch (_: SecurityException) {
+                    needPermission.put(songId.toString())
+                } catch (_: Exception) {
+                    // counted below
+                }
+                break
+            }
+            if (done) moved++ else failed++
+        }
+        removeEmptyFolders(java.io.File(android.os.Environment.getExternalStorageDirectory(), OLD_ROOT))
+        return JSONObject().put("type", "movedToRoot").put("id", id).put("moved", moved).put("failed", failed).put("needPermission", needPermission)
+    }
+
+    /** Removes a folder and the folders in it that hold nothing (a folder with any file in it stays). */
+    private fun removeEmptyFolders(folder: java.io.File) {
+        if (!folder.isDirectory) return
+        folder.listFiles()?.forEach { removeEmptyFolders(it) }
+        if (folder.list()?.isEmpty() == true) folder.delete()
     }
 
     /**
@@ -188,6 +256,7 @@ object HomeSync {
                 return try {
                     val uri = uriOf(target)
                     context.contentResolver.openOutputStream(uri, "wt")?.use { output -> temp.inputStream().use { it.copyTo(output) } } ?: throw IllegalStateException("No place to write the song.")
+                    ArtProvider.forget(context, target) // the song keeps its id, so its remembered cover would be the old one
                     // (the pending flag is not used here: Android refuses writes to a pending song the app did not create)
                     JSONObject().put("type", "downloaded").put("id", id).put("ok", true).put("mediaId", target.toString()).put("bytes", temp.length())
                 } catch (e: SecurityException) {
@@ -228,7 +297,64 @@ object HomeSync {
         }
     }
 
-    /** Takes songs fetched from the server off the phone: `ids` are media-index ids; answers the ones that went. Anything not under [ROOT] is refused. */
+    /**
+     * Sends one song on the phone to the computer (D214) or the Jellyfin server's plugin (D215): `{id, url, headers, mediaId}`. The file is streamed, never held
+     * in memory, and only to an address on the home network. Answers `{type: "uploaded", id, ok, already | error}`.
+     */
+    fun upload(context: Context, message: JSONObject, progress: (bytes: Long, total: Long) -> Unit): JSONObject {
+        val id = message.optString("id")
+        fun fail(text: String) = JSONObject().put("type", "uploaded").put("id", id).put("ok", false).put("error", text)
+        val media = message.optString("mediaId").toLongOrNull() ?: return fail("That song is not on the phone.")
+        return try {
+            val url = URL(message.optString("url"))
+            if (url.protocol != "http" && url.protocol != "https") return fail("Only http and https addresses are used.")
+            if (InetAddress.getAllByName(url.host).none { HomeHttp.isHomeAddress(it) }) return fail("Only a computer or server on the home network can be used.")
+            val uri = uriOf(media)
+            val total = context.contentResolver.openFileDescriptor(uri, "r")?.use { it.statSize } ?: return fail("The song cannot be read.")
+            if (total <= 0) return fail("The song is empty.")
+            val connection = url.openConnection() as HttpURLConnection
+            try {
+                connection.connectTimeout = 15_000
+                connection.readTimeout = 120_000
+                connection.requestMethod = "POST"
+                connection.doOutput = true
+                connection.setFixedLengthStreamingMode(total)
+                message.optJSONObject("headers")?.let { h -> h.keys().forEach { connection.setRequestProperty(it, h.optString(it)) } }
+                connection.setRequestProperty("Content-Type", "application/octet-stream")
+                context.contentResolver.openInputStream(uri)?.use { input ->
+                    connection.outputStream.use { output ->
+                        val buffer = ByteArray(64 * 1024)
+                        var done = 0L
+                        var lastReport = 0L
+                        while (true) {
+                            val n = input.read(buffer)
+                            if (n < 0) break
+                            output.write(buffer, 0, n)
+                            done += n
+                            val now = System.currentTimeMillis()
+                            if (now - lastReport > 400) {
+                                lastReport = now
+                                progress(done, total)
+                            }
+                        }
+                    }
+                } ?: return fail("The song cannot be read.")
+                val status = connection.responseCode
+                if (status == 401) return fail("This phone's sign-in is no longer accepted. Pair or sign in again.")
+                val stream = if (status >= 400) connection.errorStream else connection.inputStream
+                val answer = runCatching { JSONObject(stream?.use { it.readNBytes(4096).toString(Charsets.UTF_8) } ?: "") }.getOrNull()
+                // (Jellyfin writes its answers' names with a capital, the computer without.)
+                if (status != 200) return fail(listOf("message", "Message").firstNotNullOfOrNull { answer?.optString(it)?.ifEmpty { null } } ?: "The answer was $status.")
+                JSONObject().put("type", "uploaded").put("id", id).put("ok", true).put("already", answer?.optBoolean("already") == true || answer?.optBoolean("Already") == true)
+            } finally {
+                connection.disconnect()
+            }
+        } catch (e: Exception) {
+            fail(e.message ?: "There was no answer.")
+        }
+    }
+
+    /** Takes songs fetched from the server off the phone: `ids` are media-index ids; answers the ones that went. A song this app did not create is refused. */
     fun delete(context: Context, ids: List<String>): List<String> {
         val gone = ArrayList<String>()
         for (text in ids) {

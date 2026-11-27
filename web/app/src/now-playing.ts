@@ -4,6 +4,7 @@
 
 import type { Rgb } from "../tv/visuals.ts";
 import { coverAccent } from "./accent";
+import { wallGrid } from "./backdrop-plan";
 import { planWall, rankCollage } from "./collage";
 import { coverUrl } from "./cover-art";
 import { folderOf } from "./cover-util";
@@ -171,7 +172,10 @@ export function initNowPlaying(
     if (!animate) void lyricsLines.offsetWidth; // apply the jump before the transition comes back
   }
   window.addEventListener("resize", () => {
-    if (!root.hidden) place(highlighted, false);
+    if (!root.hidden) {
+      place(highlighted, false);
+      fitWall(root.getBoundingClientRect().width);
+    }
   });
 
   /** Highlights the line being sung and keeps it in the middle. */
@@ -195,6 +199,14 @@ export function initNowPlaying(
   player.onTime(follow);
 
   /** The wall emphasises what is playing: its album, the queue's albums, the artist's other albums. */
+  /** Sets the wall's columns and cell size so the cells fill `width` exactly (no black band down the sides). */
+  function fitWall(width: number): { cols: number; size: number } {
+    const grid = wallGrid(width, CELL, 3);
+    wall.style.setProperty("--wall-cols", String(grid.cols));
+    wall.style.setProperty("--wall-cell", `${grid.size}px`);
+    return grid;
+  }
+
   async function buildWall(): Promise<void> {
     const library = libraryTracks();
     const view = player.view();
@@ -208,7 +220,8 @@ export function initNowPlaying(
     const urlOf = new Map(withCovers.map((c) => [c.item.track.source_uri, c.url as string]));
     // The grid cells the wall must cover (cells are CELL pixels plus a small gap), with some to spare.
     const bounds = root.getBoundingClientRect();
-    const cells = Math.ceil(bounds.width / (CELL + 3)) * Math.ceil(bounds.height / (CELL + 3));
+    const grid = fitWall(bounds.width);
+    const cells = grid.cols * Math.ceil(bounds.height / (grid.size + 3));
     const plan = planWall(withCovers.map((c) => c.item), cells, folderOf);
     wall.replaceChildren();
     for (const planned of plan) {

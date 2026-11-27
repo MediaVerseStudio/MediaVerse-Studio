@@ -8,7 +8,7 @@ use serde_json::{Value, json};
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
-const MAX_TAG_BYTES: usize = 12 * 1024 * 1024;
+const MAX_TAG_BYTES: usize = id3::MAX_TAG_BYTES;
 const FOLDER_NAMES: [&str; 6] = [
     "cover.jpg",
     "cover.png",
@@ -362,6 +362,59 @@ pub fn album_pictures(paths: &[String], library_root: Option<&Path>) -> Result<V
         };
     }
     Ok(out)
+}
+
+/// One picture exactly as it is stored, as `{mime, data_base64}`: the `kind` (`front`, `back` or `artist`) inside the
+/// song at `requested`, or with `file` the picture file of that name in the song's folder (`up`: the folder above, for
+/// an artist photo). Only the album picture names are opened.
+pub fn art_source(
+    requested: &str,
+    kind: &str,
+    file: Option<&str>,
+    up: bool,
+    library_root: Option<&Path>,
+) -> Result<Value, String> {
+    let song = resolve_in_library(requested, library_root)?;
+    let (wanted, names): (u8, &[&str]) = match kind {
+        "front" => (3, &["cover", "folder", "front"]),
+        "back" => (4, &["back"]),
+        "artist" => (8, &["artist"]),
+        _ => return Err("The kind is front, back or artist.".to_owned()),
+    };
+    let data = match file {
+        None => {
+            let pictures = embedded_pictures(&song);
+            pictures
+                .iter()
+                .find(|(k, _)| *k == wanted)
+                .or_else(|| {
+                    (wanted == 3)
+                        .then(|| pictures.iter().find(|(k, _)| *k == id3::OTHER_PICTURE))
+                        .flatten()
+                })
+                .map(|(_, data)| data.clone())
+        }
+        Some(name) => {
+            let lower = name.to_ascii_lowercase();
+            let allowed = lower.rsplit_once('.').is_some_and(|(stem, extension)| {
+                names.contains(&stem) && ["jpg", "jpeg", "png"].contains(&extension)
+            });
+            if !allowed {
+                return Err("That is not an album picture file.".to_owned());
+            }
+            let folder = song.parent().and_then(|dir| {
+                if up && wanted == 8 {
+                    dir.parent()
+                } else {
+                    Some(dir)
+                }
+            });
+            folder.and_then(|dir| std::fs::read(dir.join(name)).ok())
+        }
+    };
+    let data = data.ok_or("That picture is no longer there; check the library again.")?;
+    let mime = mime_of(&data).ok_or("That picture is not a JPEG or PNG.")?;
+    Ok(json!({ "mime": mime, "data_base64": base64(&data) }))
 }
 
 /// The embedded picture of an MP3, preferring the front cover, then any other.

@@ -22,7 +22,7 @@ use serde::{Deserialize, Serialize};
 /// (https://acoustid.org/application/38031). **When the program's version number changes, update the
 /// registration on that page first, then change this constant to the new version.** The test below
 /// fails on a version bump until that is done, as a reminder.
-pub const ACOUSTID_REGISTERED_VERSION: &str = "0.9.0";
+pub const ACOUSTID_REGISTERED_VERSION: &str = "0.9.1";
 
 #[cfg(test)]
 mod registration {

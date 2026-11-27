@@ -27,6 +27,8 @@ data class Track(
     /** The file's name and size in bytes: music already on the phone is recognised by them when it is kept in step with a home server (D178). */
     val file: String = "",
     val size: Long = 0,
+    /** Whether this app created the file (it fetched it from the home server), so it may take it off again. */
+    val own: Boolean = false,
 ) {
     val uri: Uri get() = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id)
     val folder: String get() = folderPath.trimEnd('/').substringAfterLast('/')
@@ -74,7 +76,8 @@ class Library(val tracks: List<Track>) {
                     .put("duration_ms", track.durationMs)
                     .put("added", track.added)
                     .put("file", track.file)
-                    .put("size", track.size),
+                    .put("size", track.size)
+                    .put("own", track.own),
             )
         }
         return list
@@ -123,6 +126,7 @@ class Library(val tracks: List<Track>) {
                 MediaStore.Audio.Media.DISPLAY_NAME,
                 MediaStore.Audio.Media.DATE_ADDED,
                 MediaStore.Audio.Media.SIZE,
+                MediaStore.MediaColumns.OWNER_PACKAGE_NAME,
             )
             val tracks = ArrayList<Track>()
             val cursor = try {
@@ -153,6 +157,7 @@ class Library(val tracks: List<Track>) {
                         added = if (c.isNull(13)) 0 else c.getLong(13),
                         file = name,
                         size = if (c.isNull(14)) 0 else c.getLong(14),
+                        own = HomeSync.ownedByApp(text(15), text(11), context.packageName),
                     )
                 }
             }

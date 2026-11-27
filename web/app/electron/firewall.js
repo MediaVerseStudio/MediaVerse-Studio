@@ -1,5 +1,5 @@
 // Windows Firewall and TV sharing (owner, 2026-11-05): the TV could not find the PC although sharing was on,
-// because Windows only allowed MediaVerse Studio on public networks while the home network is private. Settings > TV
+// because Windows only allowed MediaVerse Studio on public networks while the home network is private. Settings > TV & Phone Pairing
 // checks this and offers to add one narrow rule: inbound TCP on the sharing port, for this program, on private
 // networks only. Adding it needs Windows' own administrator prompt; nothing is changed without it.
 

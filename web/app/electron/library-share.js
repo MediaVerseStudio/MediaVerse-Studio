@@ -1,7 +1,9 @@
 // Shares the music library with the MediaVerse Studio TV app on the home network (D38). Read only, except that a
 // paired TV may flag a song for review or mark it a favorite (D44); nothing else can be changed from a TV.
+// A device paired as a phone (D214) may also keep favorites, flags and playlists in step and, when the owner allows
+// it, send new music into an "incoming" folder (share-sync.js).
 //
-// Off until the owner switches it on in Settings > TV. When on, a small web server answers GET requests from
+// Off until the owner switches it on in Settings > TV & Phone Pairing. When on, a small web server answers GET requests from
 // devices on the home network only (private and link-local addresses). A TV pairs once: it asks to pair, this
 // computer shows a one-time 6-digit code, and the code typed on the TV earns it a long random key that every
 // later request carries (the computer keeps only a hash of it). Paired TVs are listed in Settings and can be
@@ -18,6 +20,7 @@ const path = require("node:path");
 const { promisify } = require("node:util");
 const gzip = promisify(require("node:zlib").gzip);
 const { resolveAllowedAudio, mimeTypeFor } = require("./media-access");
+const { createSyncApi, syncList } = require("./share-sync");
 
 const DEFAULT_PORT = 47700;
 const API_VERSION = 2;
@@ -26,7 +29,7 @@ const MAX_WRONG_CODES = 5;
 const LOCKOUT_MS = 10 * 60_000;
 /** How long a pairing code shown on the computer stays usable. */
 const PAIRING_MS = 5 * 60_000;
-/** How long Settings > TV leaves pairing open after "Pair a TV". A TV cannot start pairing on its own. */
+/** How long Settings > TV & Phone Pairing leaves pairing open after "Pair a TV". A TV cannot start pairing on its own. */
 const ARM_MS = 5 * 60_000;
 /** A media ticket (audio and cover URLs only) lasts a listening session. It is not the device key. */
 const TICKET_MS = 12 * 60 * 60_000;
@@ -151,10 +154,11 @@ function readSettings(file) {
     return {
       enabled: saved.enabled === true,
       port: Number.isInteger(saved.port) && saved.port > 1023 && saved.port < 65536 ? saved.port : DEFAULT_PORT,
-      devices: devices.slice(0, MAX_DEVICES).map(({ id, name, key_hash, paired }) => ({ id, name, key_hash, paired: typeof paired === "string" ? paired : null })),
+      devices: devices.slice(0, MAX_DEVICES).map(({ id, name, key_hash, paired, sync }) => ({ id, name, key_hash, paired: typeof paired === "string" ? paired : null, ...(sync === true ? { sync: true } : {}) })),
+      uploads: saved.uploads === true,
     };
   } catch {
-    return { enabled: false, port: DEFAULT_PORT, devices: [] };
+    return { enabled: false, port: DEFAULT_PORT, devices: [], uploads: false };
   }
 }
 
@@ -168,6 +172,7 @@ function writeSettings(file, settings) {
  * @param {string} options.settingsFile where the on/off choice, port and paired TVs are kept
  * @param {{ snapshot(): Promise<{tracks: any[]}>, root(): Promise<string|null>, cover(path: string): Promise<any>, lyrics(path: string): Promise<any>, shrink?(bytes: Buffer, size: number): Promise<Buffer> }} options.source
  *   optional `favorites()`/`flags()` list `{path}` entries and `setFavorite(path, args)`/`setFlag(path, args)` change them (D44)
+ *   for phones (D214): `savePlaylist(args)`, `deletePlaylist(id)` and `incoming()`, the folder new music goes into
  *   `shrink` makes a JPEG at most `size` pixels on its longer side (optional; without it covers come full size)
  * @param {() => void} [options.onChange] called when something Settings shows changes (a TV asks to pair, pairs)
  * @param {() => void} [options.onMarks] called when a TV flags a song or changes a favorite
@@ -421,6 +426,32 @@ function createLibraryShare({ settingsFile, source, log = () => {}, onChange = (
     response.end(text);
   }
 
+  /** The library as phones keep it (D214): made when a phone first asks, dropped with the rest when it changes. */
+  let phoneLibrary = null;
+  function currentPhoneLibrary() {
+    if (!phoneLibrary) {
+      const making = (async () => {
+        const [snapshot, root] = await Promise.all([source.snapshot(), source.root()]);
+        return syncList(snapshot?.tracks ?? [], root);
+      })();
+      phoneLibrary = making;
+      making.catch(() => {
+        if (phoneLibrary === making) phoneLibrary = null;
+      });
+    }
+    return phoneLibrary;
+  }
+
+  const syncApi = createSyncApi({
+    source,
+    library: currentPhoneLibrary,
+    uploadsAllowed: () => settings.uploads === true,
+    deletedFile: path.join(path.dirname(settingsFile), "playlists-removed-by-phones.json"),
+    send,
+    onMarks: () => onMarks(),
+    log,
+  });
+
   function lockedOut(address) {
     const entry = wrongCodes.get(address);
     if (!entry) return false;
@@ -498,7 +529,10 @@ function createLibraryShare({ settingsFile, source, log = () => {}, onChange = (
 
   async function trackFor(id) {
     const { byId } = await currentLibrary();
-    return byId.get(id) ?? null;
+    const track = byId.get(id);
+    if (track) return track;
+    // A phone names songs its own way (D214).
+    return /^[0-9a-f]{32}$/.test(id) ? ((await currentPhoneLibrary()).byId.get(id) ?? null) : null;
   }
 
   // ---- Links for DLNA renderers (D77) ----
@@ -531,10 +565,10 @@ function createLibraryShare({ settingsFile, source, log = () => {}, onChange = (
 
   /**
    * Links a renderer at `deviceIp` can play: {audio, cover, mime, track} for a library file, or null when it is
-   * not in the library. Needs the share running (Settings > TV).
+   * not in the library. Needs the share running (Settings > TV & Phone Pairing).
    */
   async function castLink(filePath, deviceIp) {
-    if (!server) throw new Error("Turn on “Share my library with TVs” in Settings > TV first: TVs and speakers fetch the music from it.");
+    if (!server) throw new Error("Turn on “Share my library with my TVs and phones” in Settings > TV & Phone Pairing & Phone Pairing first: TVs and speakers fetch the music from it.");
     const host = addressFor(deviceIp);
     if (!host) throw new Error("This computer has no address on the home network.");
     const { byPath, byId } = await currentLibrary();
@@ -662,7 +696,8 @@ function createLibraryShare({ settingsFile, source, log = () => {}, onChange = (
     // The only changes a TV can make: flag a song for review, or mark it a favorite (D44); and it can say what it
     // is playing when the computer sent it music (D76).
     const writing = request.method === "POST" && (/^\/api\/(flag|favorite)\/[^/]+$/.test(url.pathname) || url.pathname === "/api/remote/state");
-    if (request.method !== "GET" && request.method !== "HEAD" && !writing) {
+    const syncing = url.pathname.startsWith("/api/sync/");
+    if (request.method !== "GET" && request.method !== "HEAD" && !writing && !(request.method === "POST" && syncing)) {
       send(response, 405, "Only flags and favorites can be changed.", { Allow: "GET, HEAD" });
       return;
     }
@@ -682,7 +717,7 @@ function createLibraryShare({ settingsFile, source, log = () => {}, onChange = (
       // A TV asks to pair only after someone on the computer pressed Pair a TV.
       const current = currentPairing();
       if (!pairingArmed() && !(current && current.address === address)) {
-        send(response, 403, { error: "not_armed", message: "On the computer, open Settings > TV and press Pair a TV, then try again." });
+        send(response, 403, { error: "not_armed", message: "On the computer, open Settings > TV & Phone Pairing & Phone Pairing and press Pair a TV or phone, then try again." });
         return;
       }
       if (current && current.address !== address) {
@@ -692,7 +727,7 @@ function createLibraryShare({ settingsFile, source, log = () => {}, onChange = (
       clearTimeout(pairingTimer);
       const ip = plainAddress(address);
       const name = cleanDeviceName(url.searchParams.get("name")) ?? "TV";
-      pairing = { code: newPairingCode(), name: `${name} (${ip})`, address, expires: Date.now() + PAIRING_MS };
+      pairing = { code: newPairingCode(), name: `${name} (${ip})`, address, expires: Date.now() + PAIRING_MS, phone: url.searchParams.get("kind") === "phone" };
       pairingTimer = setTimeout(endPairing, PAIRING_MS);
       pairingTimer.unref?.();
       onChange();
@@ -713,7 +748,7 @@ function createLibraryShare({ settingsFile, source, log = () => {}, onChange = (
       }
       wrongCodes.delete(address);
       const key = newDeviceKey();
-      const device = { id: crypto.randomUUID(), name: current.name, key_hash: keyHash(key), paired: new Date().toISOString() };
+      const device = { id: crypto.randomUUID(), name: current.name, key_hash: keyHash(key), paired: new Date().toISOString(), ...(current.phone ? { sync: true } : {}) };
       settings = { ...settings, devices: [...settings.devices, device].slice(-MAX_DEVICES) };
       save();
       endPairing();
@@ -725,10 +760,18 @@ function createLibraryShare({ settingsFile, source, log = () => {}, onChange = (
     // asking for covers) does not count towards the lockout; only wrong pairing codes do.
     const device = deviceForRequest(request, url);
     if (!device) {
-      send(response, 401, { error: "not_paired", message: "This TV is not paired with the computer (or was removed in Settings > TV). Pair it again." });
+      send(response, 401, { error: "not_paired", message: "This TV is not paired with the computer (or was removed in Settings > TV & Phone Pairing). Pair it again." });
       return;
     }
     issueTicket(response, device);
+    if (syncing) {
+      if (!device.sync) {
+        send(response, 403, { error: "not_a_phone", message: "This device was not paired as a phone. Pair it again." });
+        return;
+      }
+      await syncApi.handle(request, response, url);
+      return;
+    }
     if (url.pathname === "/api/remote" && request.method === "GET") {
       await waitForRemote(request, response, device, url);
       return;
@@ -803,6 +846,7 @@ function createLibraryShare({ settingsFile, source, log = () => {}, onChange = (
           else response.destroy();
         });
       });
+      created.requestTimeout = 30 * 60_000; // a large song from a phone on slow Wi-Fi (D214)
       created.on("error", (error) => {
         problem = error.code === "EADDRINUSE" ? `Port ${settings.port} is already used by another program.` : String(error.message ?? error);
         log(`library share: ${problem}`);
@@ -834,10 +878,18 @@ function createLibraryShare({ settingsFile, source, log = () => {}, onChange = (
       problem: settings.enabled ? problem : null,
       port: settings.port,
       addresses: homeAddresses(),
-      devices: settings.devices.map(({ id, name, paired }) => ({ id, name, paired })),
-      pairing: currentPairing() ? { name: pairing.name, code: pairing.code, expires: pairing.expires } : null,
+      devices: settings.devices.map(({ id, name, paired, sync }) => ({ id, name, paired, phone: sync === true })),
+      pairing: currentPairing() ? { name: pairing.name, code: pairing.code, expires: pairing.expires, phone: pairing.phone } : null,
       pairing_armed: pairingArmed(),
+      uploads: settings.uploads === true,
     };
+  }
+
+  /** Whether phones may send new music to the incoming folder (D214). */
+  function setUploads(allowed) {
+    settings = { ...settings, uploads: allowed === true };
+    writeSettings(settingsFile, settings);
+    return status();
   }
 
   async function setEnabled(enabled) {
@@ -867,12 +919,14 @@ function createLibraryShare({ settingsFile, source, log = () => {}, onChange = (
     forgetDevice,
     cancelPairing,
     armPairing,
+    setUploads,
     remoteDevices,
     sendRemote,
     castLink,
     /** The library changed: the next request reads it again. */
     invalidate() {
       library = null;
+      phoneLibrary = null;
       thumbnails.clear();
       coversBeingMade.clear();
     },

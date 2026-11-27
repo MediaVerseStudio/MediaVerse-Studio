@@ -17,6 +17,7 @@ import { initGettingStarted } from "./getting-started";
 import { initHomePage } from "./home-page";
 import { type GroupMode, GROUP_MODES, type SuspectedAlbum, type TrackGroup, VARIOUS_ARTISTS, batchRequests, commonValue, groupTracks, isVariousArtists, suspectedAlbums, suggestion as batchSuggestion } from "./tag-batch";
 import { initArtistsPanel } from "./artists-panel";
+import { initWikiPhotos } from "./wiki-photos-block";
 import { renderLyricAiSettings } from "./lyric-ai-settings";
 import { initAlbumIdsPanel } from "./album-ids-panel";
 import { initAuditPanel } from "./library-audit-panel";
@@ -45,6 +46,7 @@ import { initMediaBridge } from "./media-bridge";
 import { renderAboutSettings } from "./about-settings";
 import { renderJellyfinSettings } from "./jellyfin-settings";
 import { renderProblemSync } from "./problem-sync-ui";
+import { renderProfilesSettings } from "./profiles-settings";
 import { flipInterval, loadDisplayPrefs } from "./display-prefs";
 import { createAccent } from "./accent";
 import { applyMask, loadMask } from "../tv/background-mask.ts";
@@ -197,6 +199,15 @@ renderLyricAiSettings(document.querySelector<HTMLElement>("#settings-lyric-ai")!
 initSettingsSections(document.querySelector<HTMLElement>("#settings-page")!);
 initShareSettings(document.querySelector<HTMLElement>("#settings-share")!);
 void renderAboutSettings(document.querySelector<HTMLElement>("#settings-about")!);
+/** Calls `act` each time `element` comes into view. */
+function onShown(element: Element, act: () => void): void {
+  let seen = false;
+  new IntersectionObserver((entries) => {
+    const visible = entries[entries.length - 1]!.isIntersecting;
+    if (visible && !seen) act();
+    seen = visible;
+  }).observe(element);
+}
 // Settings > Jellyfin (D90) searches the network only when its tab is opened, not at every start.
 const jellyfinSettings = renderJellyfinSettings(document.querySelector<HTMLElement>("#settings-jellyfin")!);
 {
@@ -206,12 +217,8 @@ const jellyfinSettings = renderJellyfinSettings(document.querySelector<HTMLEleme
     searched = true;
     jellyfinSettings.refresh();
   };
-  document.querySelector("[data-settings-section=jellyfin]")?.addEventListener("click", searchOnce);
-  setTimeout(() => {
-    const panel = document.querySelector<HTMLElement>("[data-settings-panel=jellyfin]");
-    const page = document.querySelector<HTMLElement>("#settings-page");
-    if (panel && !panel.hidden && page && !page.hidden) searchOnce();
-  }, 0);
+  // Whenever the tab comes into view, however it got there: a remembered tab is shown without being clicked.
+  onShown(jellyfinSettings.syncRoot.parentElement!, searchOnce);
 }
 // Settings > Library > "Using a Jellyfin server…" goes to the Jellyfin tab.
 document.querySelector<HTMLButtonElement>("#open-jellyfin-settings")?.addEventListener("click", () => document.querySelector<HTMLButtonElement>("[data-settings-section=jellyfin]")?.click());
@@ -322,6 +329,14 @@ const reviewPanels = initReviewPanels(
     lyricsSaved: () => nowPlaying.reloadLyrics(),
     playlists: playlistStore,
     titlesChanged: (message) => void refreshLibrary(message),
+    artistPhotos: initWikiPhotos({
+      songs: () => tracks.map((t) => ({ album: t.album ?? null, album_artist: t.album_artist ?? null, artist: t.artist ?? null, genre: t.genre ?? null, release_year: t.release_year ?? null, title: t.title, source_uri: t.source_uri, track_number: t.track_number ?? null })),
+      changed: (message) => {
+        forgetCovers();
+        void refreshLibrary(message);
+      },
+      stopIfPlaying: (paths) => player.stopIfPlaying(paths),
+    }),
   },
 );
 const fixTags = initFixTags(document.querySelector<HTMLElement>("#review-panel-fixtags")!, { songs: () => tracks });
@@ -414,10 +429,17 @@ favoriteStore.onChange(() => {
   renderPages();
 });
 void favoriteStore.reload().catch(() => {});
-// A paired TV flagged a song or changed a favorite.
+// Settings > Jellyfin > Profiles (D213).
+const profilesSettings = renderProfilesSettings(jellyfinSettings.profilesRoot, { favorites: () => favoriteStore.all() });
+// The list is read each time it comes into view (it was empty when Settings opened straight on the tab, 2026-11-26), and
+// again when this computer signs in or out.
+onShown(jellyfinSettings.syncRoot.parentElement!, () => profilesSettings.refresh());
+window.addEventListener("mediaverse-jellyfin-session", () => profilesSettings.refresh());
+// A paired TV or phone flagged a song or changed a favorite (a phone also playlists, D214).
 window.mediaVerse?.listen("marks-changed", () => {
   void flagStore.reload().catch(() => {});
   void favoriteStore.reload().catch(() => {});
+  void playlistStore.load();
 });
 const gettingStarted = initGettingStarted(document.querySelector<HTMLElement>("#home-setup")!, () => {
   void settingsView.refresh();

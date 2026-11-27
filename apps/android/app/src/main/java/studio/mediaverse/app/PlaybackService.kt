@@ -45,7 +45,6 @@ class PlaybackService : MediaLibraryService() {
         val open = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java).putExtra(MainActivity.EXTRA_OPEN_PLAYING, true), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         session = MediaLibrarySession.Builder(this, player, Callback()).setSessionActivity(open).setMediaButtonPreferences(buttons(player)).setCustomLayout(buttons(player)).build()
         SleepTimer.player = player
-        AbRepeat.player = player
         OutputEq.attach(this, player)
         refresh = { android.os.Handler(mainLooper).post { refreshButtons() } }
         player.addListener(object : Player.Listener {
@@ -61,7 +60,7 @@ class PlaybackService : MediaLibraryService() {
                 if (state == Player.STATE_ENDED) player.currentMediaItem?.let { countPlayed(it.mediaId, player.duration.coerceAtLeast(0)) }
             }
 
-            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) { SleepTimer.songChanged(); AbRepeat.clear() }
+            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) { SleepTimer.songChanged() }
 
             override fun onEvents(player: Player, events: Player.Events) {
                 if (events.containsAny(Player.EVENT_SHUFFLE_MODE_ENABLED_CHANGED, Player.EVENT_REPEAT_MODE_CHANGED, Player.EVENT_MEDIA_ITEM_TRANSITION)) refreshButtons()
@@ -153,8 +152,6 @@ class PlaybackService : MediaLibraryService() {
     override fun onDestroy() {
         saver.removeCallbacksAndMessages(null)
         refresh = null
-        AbRepeat.clear()
-        AbRepeat.player = null
         SleepTimer.cancel()
         SleepTimer.player = null
         OutputEq.detach()
@@ -504,7 +501,7 @@ object Resume {
 
     fun save(context: Context, player: Player) {
         val ids = (0 until player.mediaItemCount).mapNotNull { i -> Browse.idOf(player.getMediaItemAt(i).mediaId) }
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+        context.getSharedPreferences(Profiles.file(context, PREFS), Context.MODE_PRIVATE).edit()
             .putString("ids", ids.joinToString(","))
             .putInt("index", player.currentMediaItemIndex)
             .putLong("position", player.currentPosition.coerceAtLeast(0))
@@ -513,8 +510,10 @@ object Resume {
             .apply()
     }
 
-    fun load(context: Context, library: Library): State? {
-        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+    /** The queue remembered for a profile (the current one unless said). */
+    fun load(context: Context, library: Library, profile: String = Profiles.current(context), adopted: String? = null): State? {
+        val file = if (adopted != null && profile.equals(adopted, ignoreCase = true)) PREFS else Profiles.file(context, PREFS, profile)
+        val prefs = context.getSharedPreferences(file, Context.MODE_PRIVATE)
         val ids = prefs.getString("ids", "").orEmpty().split(',').mapNotNull { it.toLongOrNull() }
         val items = ids.mapNotNull { library.byId[it] }.map { Browse.playable(context, it) }
         if (items.isEmpty()) return null

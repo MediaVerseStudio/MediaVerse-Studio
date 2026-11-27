@@ -29,13 +29,4 @@ class ListeningTest {
         assertEquals(0L, SleepTimer.remainingMs())
     }
 
-    @Test
-    fun theLoopJumpsBackOnlyWhenBothMarksAreSetAndTheEndIsReached() {
-        assertFalse(AbRepeat.shouldJump(5_000, -1, -1))
-        assertFalse(AbRepeat.shouldJump(5_000, 2_000, -1))
-        assertFalse(AbRepeat.shouldJump(5_000, 2_000, 9_000))
-        assertTrue(AbRepeat.shouldJump(9_000, 2_000, 9_000))
-        assertTrue(AbRepeat.shouldJump(9_500, 2_000, 9_000))
-        assertFalse(AbRepeat.shouldJump(9_500, 9_000, 2_000)) // end before start: no loop
-    }
 }

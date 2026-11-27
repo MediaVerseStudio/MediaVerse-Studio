@@ -7,7 +7,9 @@ import { audioUrl, coverUrl, discover, fetchLibrary, fetchLyrics, fetchPlaylists
 import { readSavedPosition, readSavedQueue, restoreQueue, snapshotQueue, type SavedPosition, type SavedQueue } from "./queue-memory.ts";
 import { allSongs, buildAlbums, buildArtists, buildGenres, buildGuestArtists, clock, indexLetter, searchLibrary, shuffledOrder, type Album, type Artist, type Genre, type ServerTrack } from "./library.ts";
 import { computerMarks, driveMarks, FLAG_REASONS, forListener, jellyfinMarks, type FlagReason, type Marks, type MarkStore } from "./marks.ts";
-import { addProfile, canAddProfile, lastProfile, listProfiles, PROFILE_COLOURS, rememberProfile, removeProfile, renameProfile, type Profile } from "./profiles.ts";
+import { addProfile, canAddProfile, lastProfile, listProfiles, PROFILE_COLOURS, profileFavorites, rememberProfile, removeProfile, renameProfile, type Profile } from "./profiles.ts";
+import { shareFlagLists } from "../src/jellyfin-profiles.ts";
+import { playedThreshold } from "../src/home-format.ts";
 import { commandOf, directionOf, nextInDirection } from "./spatial.ts";
 import { analyseSong, BANDS, frameAt, type Spectrum } from "./spectrum.ts";
 import { analyseInBackground } from "./spectrum-thread.ts";
@@ -18,8 +20,7 @@ import { bassBands, bodyEnd, css, DEFAULT_PALETTE, drawStyle, mixPalette, palett
 import { ACCENT_CHOICES, applyAccent, loadAccent, paletteFromHex, saveAccent } from "./accent-choices.ts";
 import { DRIFT_SWATCH, applyMask, loadMask, saveMask, type MaskPrefs } from "./background-mask.ts";
 import { cachedDrive, listDrives, rememberDrive, scanDrive, watchDrives, type Drive, type DriveLibrary } from "./usb.ts";
-import {
-  fetchJellyfinLibrary,
+import { fetchJellyfinLibrary,
   fetchJellyfinLyrics,
   JellyfinError,
   jellyfinAudioUrl,
@@ -30,8 +31,7 @@ import {
   savedJellyfin,
   saveJellyfin,
   type JellyfinServer,
-  type JellyfinSession,
-} from "./jellyfin.ts";
+  type JellyfinSession, flagListClient, jellyfinProfiles, jellyfinRecentlyPlayed, markJellyfinPlayed, setJellyfinFavorite, signInProfile, type JellyfinUser } from "./jellyfin.ts";
 
 // ---------- Tizen glue (absent when testing in a browser) ----------
 
@@ -421,6 +421,10 @@ let drive: { drive: Drive; library: DriveLibrary } | null = null;
 
 /** The Jellyfin server being played from, or null. */
 let jelly: JellyfinSession | null = null;
+/** The profiles of the Jellyfin server in use (D213), when it has any; and the one picked. */
+let serverProfiles: { server: { base: string; name: string; serverId: string }; users: JellyfinUser[] } | null = null;
+let serverProfile: string | null = null;
+const SERVER_PROFILE = "mediaverse.tv.jellyfin.profile";
 const foundJellyfin = new Map<string, JellyfinServer>(); // by server ID
 let signIn: { stopped: boolean } | null = null;
 
@@ -466,7 +470,7 @@ async function chooseJellyfin(server: JellyfinServer): Promise<void> {
   if (driveScan) driveScan.stopped = true;
   const saved = savedJellyfin();
   if (saved && saved.serverId === server.id) {
-    await openJellyfin({ ...saved, base: server.base, name: server.name });
+    await enterJellyfin({ ...saved, base: server.base, name: server.name });
     return;
   }
   showPanel("jellyfin");
@@ -492,10 +496,94 @@ async function chooseJellyfin(server: JellyfinServer): Promise<void> {
       return;
     }
     saveJellyfin(session);
-    await openJellyfin(session);
+    await enterJellyfin(session);
   } catch (error) {
     if (!mine.stopped) status.textContent = error instanceof Error ? error.message : String(error);
   }
+}
+
+/** Looks for the server's profiles: with some, "Who's listening?" is asked; with none, the TV's own sign-in is used. */
+async function enterJellyfin(session: JellyfinSession): Promise<void> {
+  const users = await jellyfinProfiles(session.base).catch(() => []);
+  if (!users.length) {
+    serverProfiles = null;
+    serverProfile = null;
+    await openJellyfin(session);
+    return;
+  }
+  serverProfiles = { server: { base: session.base, name: session.name, serverId: session.serverId }, users };
+  listener = null;
+  openPicker(!albums.length); // from a library already open, Back returns to where it was
+}
+
+/** A profile was picked: sign in to it, carry over what this TV kept for a person of that name, and show its music. */
+async function chooseServerProfile(name: string): Promise<void> {
+  const at = serverProfiles?.server;
+  if (!at) return;
+  const hint = $("#who-hint");
+  hint.textContent = `Opening ${name}…`;
+  let session: JellyfinSession;
+  try {
+    session = await signInProfile(at, name);
+  } catch (error) {
+    hint.textContent = error instanceof Error ? error.message : String(error);
+    return;
+  }
+  await carryFavorites(session, name);
+  const same = jelly?.serverId === session.serverId && songs.length > 0;
+  const switching = serverProfile !== null && serverProfile !== name;
+  if (same && switching) {
+    // The same library, another person: their music stops here and theirs comes back.
+    rememberQueue();
+    audio.pause();
+    queue = [];
+    order = [];
+    position = 0;
+    restoredWaiting = null;
+  }
+  serverProfile = name;
+  writeMemory(SERVER_PROFILE, name);
+  listener = null;
+  showListenerTab();
+  if (same) {
+    jelly = session;
+    useProfileSource(session);
+    updateNowPlaying();
+    restoreSavedQueue();
+    playlists = [];
+    playlistsKnown = false;
+    void loadPlaylists();
+    pickerReturn = null;
+    closePicker();
+    openTab("albums");
+    toast(`Hi, ${name}`, 1800);
+    return;
+  }
+  choosingListener = false;
+  afterChoosing = null;
+  showPanel("sources");
+  await openJellyfin(session);
+}
+
+/** Favorites this TV kept for a person (D45) go to the profile of the same name, once. */
+async function carryFavorites(session: JellyfinSession, name: string): Promise<void> {
+  const person = listProfiles().find((p) => p.name.toLowerCase() === name.toLowerCase());
+  if (!person) return;
+  const done = `mediaverse.tv.carried:${person.id}:${session.serverId}`;
+  try {
+    if (localStorage.getItem(done)) return;
+    for (const id of profileFavorites(person.id, `jellyfin:${session.serverId}`)) await setJellyfinFavorite(session, id, true);
+    localStorage.setItem(done, "1");
+  } catch {
+    // The server is away, or a song is gone: tried again the next time the profile is picked.
+  }
+}
+
+/** Marks and flags for the session; with a profile, its own queue memory too. */
+function useProfileSource(session: JellyfinSession): void {
+  setMarkSource(jellyfinMarks(session), serverProfile ? `jellyfin:${session.serverId}:${serverProfile}` : `jellyfin:${session.serverId}`);
+  // Anyone added to the server may check and clear the flags (D213).
+  void shareFlagLists(flagListClient, session).catch(() => 0);
 }
 
 async function openJellyfin(session: JellyfinSession): Promise<void> {
@@ -510,7 +598,7 @@ async function openJellyfin(session: JellyfinSession): Promise<void> {
     jelly = session;
     computerName = session.name;
     rememberSource("jellyfin");
-    setMarkSource(jellyfinMarks(session), `jellyfin:${session.serverId}`);
+    useProfileSource(session);
     setLibrary(tracks);
     showScreen("browse");
     openTab("albums");
@@ -519,7 +607,7 @@ async function openJellyfin(session: JellyfinSession): Promise<void> {
     playlistsKnown = false;
     void loadPlaylists();
   } catch (error) {
-    if (error instanceof JellyfinError && error.kind === "signed_out") saveJellyfin(null);
+    if (error instanceof JellyfinError && error.kind === "signed_out" && !session.deviceId) saveJellyfin(null);
     void showSources(error instanceof Error ? error.message : String(error));
   }
 }
@@ -740,7 +828,7 @@ async function showSources(message = ""): Promise<void> {
     foundComputers.size || foundJellyfin.size || drives.length
       ? message || "Choose where to play music from."
       : message ||
-        "Nothing found. Is MediaVerse Studio running with sharing on (Settings > TV)? If it is, the computer's firewall may be turning the TV away: in Windows, allow MediaVerse Studio on private networks. Or choose Jellyfin server, USB drive, or Type an address.";
+        "Nothing found. Is MediaVerse Studio running with sharing on (Settings > TV & Phone Pairing)? If it is, the computer's firewall may be turning the TV away: in Windows, allow MediaVerse Studio on private networks. Or choose Jellyfin server, USB drive, or Type an address.";
 }
 
 function stopSearching(): void {
@@ -842,7 +930,7 @@ function buildConnect(): void {
     $("#manual-title").textContent = jellyfin ? "Type the Jellyfin server's address" : "Type the computer's address";
     $("#manual-hint").textContent = jellyfin
       ? "The address of the computer or NAS running Jellyfin (its port, 8096, is added for you). Use the number buttons (123 on the remote) or the keypad below."
-      : "It is shown in MediaVerse Studio under Settings > TV. Use the number buttons (press 123 on the remote) or the keypad below.";
+      : "It is shown in MediaVerse Studio under Settings > TV & Phone Pairing. Use the number buttons (press 123 on the remote) or the keypad below.";
     showPanel("manual");
     renderTyped();
     focus($("#host-keypad").querySelector<HTMLElement>(".f"));
@@ -942,8 +1030,10 @@ async function loadPlaylists(): Promise<void> {
     const session = jelly;
     try {
       const found = await jellyfinPlaylists(session);
+      const recent = await jellyfinRecentlyPlayed(session).catch(() => []);
       if (jelly !== session) return; // the source changed meanwhile
       playlists = found.sort((a, b) => a.name.localeCompare(b.name));
+      if (recent.length) playlists.unshift({ id: "recently-played", name: "Recently played", updated_at: 0, ids: recent });
       playlistsKnown = true;
     } catch {
       // keep the last list
@@ -1647,7 +1737,9 @@ function renderView(): void {
     queueRow.append(queueButton);
     view.append(queueRow);
     if (!playlists.length) {
-      const hint = jelly
+      const hint = serverProfile
+        ? `${serverProfile} has no playlists yet. Make them on a computer or phone using this profile, or in Jellyfin.`
+        : jelly
         ? "No playlists in Jellyfin yet. Playlists made in MediaVerse Studio are on your computer; choose the computer as the music source to see them."
         : drive
         ? "Playlists come from MediaVerse Studio on your computer. Choose the computer as the music source to see them."
@@ -2068,6 +2160,8 @@ function renderSettings(): void {
       if (jelly) {
         saveJellyfin(null);
         jelly = null;
+        serverProfiles = null;
+        serverProfile = null;
       } else {
         saveConnection(null);
         connection = null;
@@ -2193,9 +2287,12 @@ function writeMemory(key: string, value: unknown): void {
   }
 }
 
+/** Each profile keeps its own queue and place (D213). */
+const memoryKey = (base: string): string => (serverProfile ? `${base}:${serverProfile.toLowerCase()}` : base);
+
 function rememberQueue(): void {
   const saved = snapshotQueue(sourceKey(), queue, order, position, shuffle, repeat);
-  if (saved) writeMemory(QUEUE_MEMORY_KEY, saved);
+  if (saved) writeMemory(memoryKey(QUEUE_MEMORY_KEY), saved);
   rememberPosition();
 }
 
@@ -2204,7 +2301,7 @@ function rememberPosition(): void {
   const track = nowPlaying();
   const source = sourceKey();
   if (!track || !source || !audio.getAttribute("src")) return;
-  writeMemory(POSITION_MEMORY_KEY, { source, id: track.id, seconds: Math.floor(audio.currentTime) });
+  writeMemory(memoryKey(POSITION_MEMORY_KEY), { source, id: track.id, seconds: Math.floor(audio.currentTime) });
 }
 
 /** Puts the remembered queue back once the library it belongs to has songs; returns whether it did. Run again as a USB drive's songs arrive. */
@@ -2213,8 +2310,8 @@ function restoreSavedQueue(): void {
   let saved: SavedQueue | null = null;
   let place: SavedPosition | null = null;
   try {
-    saved = readSavedQueue(localStorage.getItem(QUEUE_MEMORY_KEY));
-    place = readSavedPosition(localStorage.getItem(POSITION_MEMORY_KEY));
+    saved = readSavedQueue(localStorage.getItem(memoryKey(QUEUE_MEMORY_KEY)));
+    place = readSavedPosition(localStorage.getItem(memoryKey(POSITION_MEMORY_KEY)));
   } catch {
     return;
   }
@@ -2558,6 +2655,18 @@ setInterval(() => {
   }
 }, 10_000);
 audio.addEventListener("timeupdate", updateTime);
+/** The song whose play has been counted for the profile (once per play, after 30 seconds or half of a short one). */
+let countedPlay = "";
+audio.addEventListener("timeupdate", () => {
+  const track = nowPlaying();
+  if (!track || !jelly || !serverProfile || audio.paused) return;
+  if (audio.currentTime < 2 && countedPlay === track.id) countedPlay = ""; // the same song again from the start
+  if (countedPlay === track.id || audio.currentTime < playedThreshold(audio.duration)) return;
+  countedPlay = track.id;
+  const list = playlists.find((p) => p.id === "recently-played");
+  if (list) list.ids = [track.id, ...list.ids.filter((id) => id !== track.id)].slice(0, 100);
+  void markJellyfinPlayed(jelly, track.id).catch(() => undefined);
+});
 audio.addEventListener("durationchange", updateTime);
 
 /** Gives a control its icon (shared with the desktop) and its name. */
@@ -3236,6 +3345,13 @@ let pickerReturn: ScreenName | null = null;
 
 /** The music source changed: its flags, and the listener's own favorites for it. */
 function setMarkSource(store: MarkStore, key: string): void {
+  if (serverProfiles && !key.startsWith("jellyfin:")) {
+    // Back to the computer or a drive: the server's profiles stay with the server; the TV's own people return.
+    serverProfiles = null;
+    serverProfile = null;
+    listener = listProfiles().find((p) => p.id === lastProfile()) ?? null;
+    showListenerTab();
+  }
   markSource = { store, key };
   useMarks(forListener(store, listener, key));
 }
@@ -3246,19 +3362,56 @@ function initial(name: string): string {
 
 function showListenerTab(): void {
   const tab = $("#listener-tab");
-  tab.hidden = !listener;
+  const shown = serverProfile ? { name: serverProfile, colour: colourOf(serverProfile) } : listener;
+  tab.hidden = !shown;
   tab.replaceChildren();
-  if (!listener) return;
+  if (!shown) return;
   const dot = document.createElement("span");
   dot.className = "who-dot";
-  dot.style.background = PROFILE_COLOURS[listener.colour % PROFILE_COLOURS.length];
-  dot.textContent = initial(listener.name);
+  dot.style.background = PROFILE_COLOURS[shown.colour % PROFILE_COLOURS.length];
+  dot.textContent = initial(shown.name);
   const name = document.createElement("span");
-  name.textContent = listener.name;
+  name.textContent = shown.name;
   tab.append(dot, name);
 }
 
+/** A profile's colour, from its place among the server's profiles (by name), so neighbours never share one. */
+function colourOf(name: string): number {
+  return Math.max(0, serverProfiles?.users.findIndex((user) => user.name === name) ?? 0) % PROFILE_COLOURS.length;
+}
+
+/** The server's profiles as tiles. They are added and changed on the computer or in Jellyfin. */
+function renderServerPicker(users: JellyfinUser[]): void {
+  const list = $("#who-list");
+  list.replaceChildren();
+  $("#who").classList.remove("editing");
+  $("#who-title").textContent = "Who's listening?";
+  for (const user of users) {
+    const tile = document.createElement("button");
+    tile.type = "button";
+    tile.className = "who-tile f";
+    tile.dataset.profile = user.name;
+    const avatar = document.createElement("span");
+    avatar.className = "who-avatar";
+    avatar.style.background = PROFILE_COLOURS[colourOf(user.name)];
+    avatar.textContent = initial(user.name);
+    const name = document.createElement("span");
+    name.className = "who-tile-name";
+    name.textContent = user.name;
+    tile.append(avatar, name);
+    tile.addEventListener("click", () => void chooseServerProfile(user.name));
+    list.append(tile);
+  }
+  $("#who-edit").hidden = true;
+  $("#who-skip").hidden = true;
+  $("#who-hint").textContent = "Each profile has its own favorites, playlists and recently played. Add profiles in MediaVerse Studio on the computer (Settings, Jellyfin).";
+}
+
 function renderPicker(): void {
+  if (serverProfiles) {
+    renderServerPicker(serverProfiles.users);
+    return;
+  }
   const people = listProfiles();
   const list = $("#who-list");
   list.replaceChildren();
@@ -3305,7 +3458,14 @@ function openPicker(starting: boolean): void {
   editingPeople = false;
   showScreen("who");
   renderPicker();
-  const last = lastProfile() ?? listener?.id;
+  let last: string | null | undefined = lastProfile() ?? listener?.id;
+  if (serverProfiles) {
+    try {
+      last = serverProfile ?? (JSON.parse(localStorage.getItem(SERVER_PROFILE) ?? "null") as string | null);
+    } catch {
+      last = serverProfile;
+    }
+  }
   const tiles = [...$("#who-list").querySelectorAll<HTMLElement>(".f")];
   focus(tiles.find((tile) => tile.dataset.profile === last) ?? tiles[0]);
 }
@@ -3593,7 +3753,8 @@ document.addEventListener("keydown", (event) => {
 registerRemoteKeys();
 buildConnect();
 buildPicker();
-openPicker(true);
+// With Jellyfin as the last source the picker waits for the server's profiles; otherwise the TV's own people, at once.
+if (!(lastSource() === "jellyfin" && savedJellyfin())) openPicker(true);
 // A drive plugged in while choosing a source appears in the list at once.
 watchDrives(() => {
   if (screen === "connect" && panel === "sources") {
@@ -3615,7 +3776,16 @@ void (async () => {
       return;
     }
   }
-  if (jellyfinSaved && (last === "jellyfin" || !connection)) void openJellyfin(jellyfinSaved);
+  if (jellyfinSaved && last === "jellyfin") {
+    showPanel("sources");
+    $("#sources-status").textContent = `Looking for ${jellyfinSaved.name}…`;
+    const users = await jellyfinProfiles(jellyfinSaved.base).catch(() => []);
+    if (users.length) await enterJellyfin(jellyfinSaved);
+    else {
+      openPicker(true);
+      void openJellyfin(jellyfinSaved);
+    }
+  } else if (jellyfinSaved && !connection) void enterJellyfin(jellyfinSaved);
   else if (connection) void openLibrary(connection);
   else void showSources();
 })();

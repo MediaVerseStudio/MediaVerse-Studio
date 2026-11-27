@@ -16,8 +16,11 @@ import { isInbox, MASTER_NAME } from "../phone/flags.ts";
 import { JellyfinProblem, type Jellyfin, type Session } from "../phone/jellyfin-phone.ts";
 
 export type PcPlaylist = { id: string; name: string; paths: string[] };
-/** For each computer playlist (by its id): its name and the server songs it held at the last round. */
-export type PlaylistSyncState = Record<string, { name: string; ids: string[] }>;
+/**
+ * For each computer playlist (by its id): its name, the server songs it held at the last round, and which of those this
+ * computer had too (`held`). A song it did not have then, and has now, is new here, not taken out here.
+ */
+export type PlaylistSyncState = Record<string, { name: string; ids: string[]; held?: string[] }>;
 
 type Client = Pick<Jellyfin, "serverSongs" | "playlists" | "playlistSongs" | "createPlaylist" | "addToPlaylist" | "removeFromPlaylist" | "deletePlaylist">;
 
@@ -110,7 +113,8 @@ export async function syncPlaylists(io: SyncIo, before: PlaylistSyncState): Prom
   };
 
   const remote = (await client.playlists(session)).filter((list) => !isFlagList(list.name));
-  const remoteByName = new Map(remote.map((list) => [list.name, list]));
+  // A playlist file in the music folder cannot be changed: a real list of the same name goes before it (the later entry wins).
+  const remoteByName = new Map([...remote].sort((a, b) => Number(!a.file) - Number(!b.file)).map((list) => [list.name, list]));
   const mine = io.playlists.filter((list) => !isFlagList(list.name));
   const mineIds = new Set(mine.map((list) => list.id));
 
@@ -130,7 +134,7 @@ export async function syncPlaylists(io: SyncIo, before: PlaylistSyncState): Prom
   for (const playlist of mine) {
     const last = before[playlist.id];
     try {
-    const base = last && last.name === playlist.name ? last.ids : null;
+    const previous = last && last.name === playlist.name ? last : null;
     const there = remoteByName.get(playlist.name);
     const localIds = unique(playlist.paths.map(toId).filter((id): id is string => !!id));
     const notOnServerPaths = playlist.paths.filter((path) => !toId(path));
@@ -141,12 +145,17 @@ export async function syncPlaylists(io: SyncIo, before: PlaylistSyncState): Prom
         await client.createPlaylist(session, playlist.name, localIds);
         report.madeOnServer++;
       }
-      state[playlist.id] = { name: playlist.name, ids: localIds };
+      state[playlist.id] = { name: playlist.name, ids: localIds, held: localIds };
       continue;
     }
 
     const current = await client.playlistSongs(session, there.id);
     const remoteIds = unique(current.map((song) => song.id));
+    // A record from before `held` was kept cannot say what this computer had: for that one round nothing it lacks
+    // counts as taken out here.
+    const here = new Set(localIds);
+    const onServer = new Set(remoteIds);
+    const base = previous ? (previous.held ?? previous.ids.filter((id) => !onServer.has(id) || here.has(id))) : null;
     // A server song this library cannot hold is not "taken out here": it simply cannot be on this side's list.
     const unholdable = [...(base ?? []), ...remoteIds].filter((id) => !toPath(id));
     const merged = mergeSongs(base, unique([...localIds, ...unholdable]), remoteIds);
@@ -191,7 +200,7 @@ export async function syncPlaylists(io: SyncIo, before: PlaylistSyncState): Prom
       report.addedHere += next.filter((path) => !playlist.paths.includes(path)).length;
       report.removedHere += playlist.paths.filter((path) => !next.includes(path)).length;
     }
-    state[playlist.id] = { name: playlist.name, ids: merged };
+    state[playlist.id] = { name: playlist.name, ids: merged, held: merged.filter((id) => ownPath.has(id) || !!toPath(id)) };
     } catch (error) {
       if (endsRound(error)) throw error;
       report.failed.push(`${playlist.name}: ${error instanceof Error ? error.message : String(error)}`);
@@ -215,7 +224,7 @@ export async function syncPlaylists(io: SyncIo, before: PlaylistSyncState): Prom
       }
       if (!paths.length) continue;
       const id = await io.savePlaylist({ name: list.name, paths: unique(paths) });
-      state[id] = { name: list.name, ids: songs };
+      state[id] = { name: list.name, ids: songs, held: songs.filter((song) => !!toPath(song)) };
       report.madeHere++;
     } catch (error) {
       if (endsRound(error)) throw error;

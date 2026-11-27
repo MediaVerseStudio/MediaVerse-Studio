@@ -6,6 +6,8 @@ import { type AlignAlbum, FIELD_LABELS, changesFor, songsToFix } from "./album-a
 import { invoke, listen } from "./desktop-bridge";
 import { el } from "./dom";
 import { picturesRequest } from "./media-request";
+import { fitForSong } from "./image-prep";
+import { blobFromBase64 } from "./cover-util";
 
 export type AlbumAlignDeps = { changed: (message: string) => void; stopIfPlaying: (paths: string[]) => void };
 
@@ -14,7 +16,6 @@ type ScanResult = { stopped: boolean; checked: number; total: number; albums: Al
 type CoverReply = { mime: string; data_base64: string } | null;
 
 const PAGE = 8;
-const MAX_COVER_BYTES = 500 * 1024;
 const button = (text: string, className = "secondary"): HTMLButtonElement => {
   const b = el("button", className, text);
   b.type = "button";
@@ -170,10 +171,10 @@ export function initAlbumAlignPanel(root: HTMLElement, deps: AlbumAlignDeps): { 
       if (album.cover?.source && album.cover.missing.length) {
         const cover = await invoke<CoverReply>("track_cover", { path: album.cover.source });
         if (!cover || (cover.mime !== "image/jpeg" && cover.mime !== "image/png")) problems.push({ message: "The album's cover could not be read, so it was not copied." });
-        else if (cover.data_base64.length * 0.75 > MAX_COVER_BYTES) problems.push({ message: "The album's cover is too large to embed as it is; use Review > Artwork." });
         else {
           const batch = `align-pic-${stamp}`;
-          const reply = await invoke<{ results: { path: string; ok: boolean; error?: string }[] }>("update_track_media", picturesRequest(album.cover.missing, [{ kind: "front_cover", base64: cover.data_base64 }], [], batch));
+          const fitted = await fitForSong(blobFromBase64(cover.data_base64, cover.mime));
+          const reply = await invoke<{ results: { path: string; ok: boolean; error?: string }[] }>("update_track_media", picturesRequest(album.cover.missing, [{ kind: "front_cover", base64: fitted }], [], batch));
           const ok = reply.results.filter((r) => r.ok).length;
           problems.push(...reply.results.filter((r) => !r.ok).map((r) => ({ path: r.path, message: r.error ?? "it failed" })));
           if (ok) fixed.pictures = batch;

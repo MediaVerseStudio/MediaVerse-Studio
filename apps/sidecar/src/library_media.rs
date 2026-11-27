@@ -34,6 +34,9 @@ fn edit_from(args: &Value, single_file: bool) -> Result<TagEdit, String> {
         match item["data_base64"].as_str() {
             Some(text) => {
                 let data = unbase64(text).ok_or("A picture was not valid base64 data.")?;
+                if let Some(problem) = crate::cover_art::song_picture_problem(&data) {
+                    return Err(problem);
+                }
                 edit.pictures
                     .push(PictureChange::Set(Picture { kind, data }));
             }
@@ -268,7 +271,7 @@ pub fn undo_picture_batch(
                 PictureChange::Remove(kind)
             } else {
                 match std::fs::read(dir.join(name)) {
-                    Ok(data) => PictureChange::Set(Picture { kind, data }),
+                    Ok(data) => PictureChange::Restore(Picture { kind, data }),
                     Err(e) => {
                         problems.push(json!({ "path": path, "message": format!("the old picture is missing: {e}") }));
                         continue;
@@ -577,7 +580,9 @@ pub fn update_track_media(
                     let before = crate::library_cover::embedded_pictures(&file);
                     for change in &edit.pictures {
                         let kind = match change {
-                            PictureChange::Set(picture) => picture.kind,
+                            PictureChange::Set(picture) | PictureChange::Restore(picture) => {
+                                picture.kind
+                            }
                             PictureChange::Remove(kind) => *kind,
                         };
                         // A front cover replaces a cover stored as type 0 ("Other") too; that is what undo puts back.
@@ -797,6 +802,28 @@ mod tests {
         (root, files)
     }
 
+    #[test]
+    fn a_png_or_an_oversize_picture_is_never_put_inside_a_song() {
+        let sized = |width: u16| {
+            let mut data = vec![0xFF, 0xD8, 0xFF, 0xC0, 0x00, 0x11, 0x08];
+            data.extend_from_slice(&width.to_be_bytes());
+            data.extend_from_slice(&width.to_be_bytes());
+            data.extend([0u8; 10]);
+            data.extend([0xFF, 0xD9]);
+            data
+        };
+        let ask = |data: &[u8]| {
+            edit_from(
+                &json!({ "pictures": [{ "kind": "front_cover", "data_base64": base64(data) }] }),
+                true,
+            )
+        };
+        let mut png = vec![0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A];
+        png.extend([0u8; 40]);
+        assert!(ask(&png).unwrap_err().contains("not a PNG"));
+        assert!(ask(&sized(1001)).unwrap_err().contains("1001 × 1001"));
+        assert!(ask(&sized(1000)).is_ok());
+    }
     #[test]
     fn a_picture_goes_onto_every_track_of_an_album_and_the_audio_is_untouched() {
         let (root, files) = library("album");

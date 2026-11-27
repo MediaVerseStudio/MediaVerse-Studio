@@ -358,6 +358,22 @@ class MainActivity : ComponentActivity() {
                 send(HomeSync.download(this, message) { bytes, total -> send(JSONObject().put("type", "downloadProgress").put("id", id).put("bytes", bytes).put("total", total)) })
             }
             "fingerprint" -> network.execute { send(HomeSync.fingerprint(this, message)) }
+            // A song on the phone sent to the computer (D214).
+            "upload" -> network.execute {
+                val id = message.optString("id")
+                send(HomeSync.upload(this, message) { bytes, total -> send(JSONObject().put("type", "uploadProgress").put("id", id).put("bytes", bytes).put("total", total)) })
+            }
+            "moveToRoot" -> worker.execute {
+                val id = message.optString("id")
+                val answer = HomeSync.moveToRoot(this, id) { done, total -> send(JSONObject().put("type", "moveProgress").put("id", id).put("done", done).put("total", total)) }
+                if (answer.optInt("moved") > 0) Library.reload(this)
+                send(answer)
+            }
+            // A long sync the person started: the screen stays on so Android does not stop it part-way.
+            "keepScreenOn" -> main.post {
+                if (message.optBoolean("on")) window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                else window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            }
             "grantWrite" -> {
                 val id = message.optString("id")
                 val ids = message.optJSONArray("ids")?.let { a -> (0 until a.length()).map { a.optString(it) } } ?: emptyList()
@@ -385,14 +401,52 @@ class MainActivity : ComponentActivity() {
                 }
             }
             "stats" -> send(JSONObject().put("type", "stats").put("stats", PlayStats.all(this)))
+            "profile" -> useProfile(message.optString("name").take(60), message.optString("adopted").take(60))
             "sleep" -> {
                 // minutes > 0: count down with a fade; "song": stop when this song ends; 0: cancel.
                 if (message.optBoolean("song")) SleepTimer.endOfSong() else SleepTimer.start(message.optInt("minutes", 0).coerceIn(0, 600))
                 sendState(queue = false)
             }
-            "ab" -> { c?.let { AbRepeat.step(it.currentPosition) }; sendState(queue = false) }
             "shuffle" -> c?.let { it.shuffleModeEnabled = !it.shuffleModeEnabled }
             "repeat" -> c?.let { it.repeatMode = when (it.repeatMode) { Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL; Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE; else -> Player.REPEAT_MODE_OFF } }
+        }
+    }
+
+    /**
+     * Another person's turn (D213): the music stops, their favorites, play counts and queue take the place of the last
+     * one's. Their queue is read before the switch, so nothing saved meanwhile can overwrite it.
+     */
+    private fun useProfile(name: String, adopted: String) {
+        if (name.isEmpty() || name == Profiles.current(this)) return
+        val player = controller
+        // The first profile on this phone takes over what is there: nothing changes hands, the music plays on.
+        if (Profiles.current(this).isEmpty() && name == adopted) {
+            Profiles.set(this, name, adopted)
+            return
+        }
+        player?.let {
+            it.pause()
+            Resume.save(this, it)
+        }
+        val context = applicationContext
+        worker.execute {
+            val theirs = Resume.load(context, Library.get(context), name, adopted)
+            main.post {
+                Profiles.set(context, name, adopted)
+                if (player != null) {
+                    if (theirs != null) {
+                        player.setMediaItems(theirs.items, theirs.index, theirs.positionMs)
+                        player.shuffleModeEnabled = theirs.shuffle
+                        player.repeatMode = theirs.repeat
+                        player.prepare()
+                    } else {
+                        player.clearMediaItems()
+                    }
+                }
+                PlaybackService.refresh?.invoke()
+                send(JSONObject().put("type", "favorites").put("ids", JSONArray(Favorites.all(context).toList())))
+                send(JSONObject().put("type", "stats").put("stats", PlayStats.all(context)))
+            }
         }
     }
 
@@ -411,8 +465,6 @@ class MainActivity : ComponentActivity() {
             .put("repeat", when (c.repeatMode) { Player.REPEAT_MODE_ALL -> "all"; Player.REPEAT_MODE_ONE -> "one"; else -> "off" })
             .put("sleep_ms", SleepTimer.remainingMs())
             .put("sleep_song", SleepTimer.waitingForSongEnd())
-            .put("ab_a", AbRepeat.a)
-            .put("ab_b", AbRepeat.b)
         if (queue) {
             val ids = (0 until c.mediaItemCount).map { Browse.idOf(c.getMediaItemAt(it).mediaId)?.toString() ?: "" }
             // In shuffle the queue is shown in the order it will play.

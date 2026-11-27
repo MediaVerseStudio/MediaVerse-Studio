@@ -5,7 +5,7 @@
 import type { TrackLyrics } from "../src/lyrics-format.ts";
 import type { ServerTrack } from "../tv/library.ts";
 
-export type PhoneTrack = ServerTrack & { duration_ms: number; disc?: number | null; /** seconds since 1970 when Android first saw the file */ added?: number; /** The file's name and size in bytes (D178: music already on the phone is recognised by them). */ file?: string; size?: number };
+export type PhoneTrack = ServerTrack & { duration_ms: number; disc?: number | null; /** seconds since 1970 when Android first saw the file */ added?: number; /** The file's name and size in bytes (D178: music already on the phone is recognised by them). */ file?: string; size?: number; /** Whether this app created the file. */ own?: boolean };
 
 /** The equalizer of the output the sound goes to now (levels in millibels, one per band). */
 export type EqState = { available: false } | { available: true; key: string; name: string; enabled: boolean; min: number; max: number; hz: number[]; levels: number[] };
@@ -30,8 +30,6 @@ export type PlayerState = {
   sleep_ms?: number;
   sleep_song?: boolean;
   /** A-B repeat marks in milliseconds; -1 when not set. */
-  ab_a?: number;
-  ab_b?: number;
 };
 
 export type Insets = { top: number; bottom: number; left: number; right: number };
@@ -53,12 +51,17 @@ export type FromApp =
   | { type: "http"; id: string; status: number; body: string }
   /** Keeping music from the home server on the phone (D177): the connection, a song fetched (or not), how far it got, and songs taken off. */
   | { type: "network"; wifi: boolean; metered: boolean }
+  | { type: "uploaded"; id: string; ok: boolean; already?: boolean; error?: string }
+  | { type: "uploadProgress"; id: string; bytes: number; total: number }
   | { type: "downloaded"; id: string; ok: boolean; mediaId?: string; bytes?: number; error?: string }
   | { type: "downloadProgress"; id: string; bytes: number; total: number }
   | { type: "deletedLocal"; id: string; ids: string[] }
   /** Whether the phone's copy of a song is the same file as the server's (null: could not be told), and Android's answer to the permission to update songs in place. */
   | { type: "fingerprint"; id: string; same: boolean | null; error?: string }
   | { type: "writeGranted"; id: string; ok: boolean }
+  /** Songs of the old download folder moved up into the Music folder (D207). */
+  | { type: "moveProgress"; id: string; done: number; total: number }
+  | { type: "movedToRoot"; id: string; moved: number; failed: number; needPermission: string[] }
   | { type: "eq"; eq: EqState }
   | ({ type: "state" } & PlayerState);
 
@@ -102,18 +105,23 @@ export type ToApp =
   | { type: "shareRemove"; id: string }
   | { type: "tvs" }
   | { type: "stats" }
+  /** The profile now in use (D213): favorites, play counts and the queue are its own. `adopted` took over what the phone had before. */
+  | { type: "profile"; name: string; adopted: string }
   | { type: "lyrics"; id: string }
   | { type: "http"; id: string; method?: string; url: string; headers?: Record<string, string>; body?: string; timeout?: number }
   | { type: "network" }
   /** Fetch one song into the Music folder as `path` ("Artist/Album/01 - Song.mp3"), replacing the phone copy `replace` (its id) when there is one. */
   | { type: "download"; id: string; url: string; headers: Record<string, string>; path: string; replace: string | null; inPlace?: boolean }
   | { type: "deleteLocal"; id: string; ids: string[] }
+  /** Sends one of the phone's songs to the computer (D214). */
+  | { type: "upload"; id: string; url: string; headers: Record<string, string>; mediaId: string }
   /** Compares a fingerprint of the head and tail of the phone's copy (`localId`) with the server's (fetched by byte range). */
   | { type: "fingerprint"; id: string; url: string; headers: Record<string, string>; localId: string; size: number }
   /** Asks Android's permission (one prompt) to update these songs of the phone in place. */
   | { type: "grantWrite"; id: string; ids: string[] }
+  | { type: "moveToRoot"; id: string }
+  | { type: "keepScreenOn"; on: boolean }
   | { type: "eq" }
-  | { type: "ab" }
   | { type: "eqSet"; key: string; enabled: boolean; levels: number[] }
   | { type: "sleep"; minutes?: number; song?: boolean }
   | { type: "tvSend"; target: string; command: TvCommand }
@@ -235,6 +243,9 @@ function standIn(onMessage: (message: FromApp) => void): Bridge {
         break;
       case "fingerprint":
         setTimeout(() => onMessage({ type: "fingerprint", id: message.id, same: true }), 50);
+        break;
+      case "moveToRoot":
+        setTimeout(() => onMessage({ type: "movedToRoot", id: message.id, moved: 0, failed: 0, needPermission: [] }), 50);
         break;
       case "grantWrite":
         setTimeout(() => onMessage({ type: "writeGranted", id: message.id, ok: true }), 50);

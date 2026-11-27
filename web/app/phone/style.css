@@ -154,10 +154,9 @@ body.is-playing-open .mini { display: none; }
 img.no-art { visibility: hidden; }
 #mini-cover { width: 50px; height: 50px; object-fit: contain; background: #15100c; flex: none; }
 .mini-text { display: grid; min-width: 0; gap: 2px; }
-#mini-title, #mini-artist, #mini-up-next { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#mini-title, #mini-artist { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #mini-title { font-weight: 600; }
 #mini-artist { font-size: 13px; color: var(--ink-dim); }
-#mini-up-next { font-size: 12px; color: var(--ink-faint); }
 .mini .icon-only { width: 44px; }
 
 /* ---------- Now Playing ---------- */
@@ -165,9 +164,11 @@ img.no-art { visibility: hidden; }
 .playing { z-index: 5; background: var(--bg); }
 .playing::before { content: ""; position: absolute; inset: 0; z-index: 1; background: radial-gradient(ellipse at 50% 35%, rgba(11, 8, 6, 0.55), rgba(11, 8, 6, 0.95) 75%); }
 .np { position: relative; z-index: 2; flex: 1; display: flex; flex-direction: column; padding: calc(var(--inset-top) + 4px) 20px calc(var(--inset-bottom) + 16px); gap: 14px; min-height: 0; }
-.np-head { display: flex; align-items: center; justify-content: space-between; }
+.np-head { display: grid; grid-template-columns: 96px minmax(0, 1fr) 96px; align-items: center; margin: 0 -10px; }
+.np-actions { display: flex; justify-content: flex-end; }
+#np-more.is-on { color: var(--accent); }
 .np-down svg { transform: rotate(-90deg); }
-.np-from { font-size: 13px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 60%; text-align: center; }
+.np-from { font-size: 13px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; }
 #np-tv[hidden] { display: block !important; visibility: hidden; }
 #np-tv.is-on { color: var(--accent); }
 .on-tv { color: var(--accent); font-weight: 600; }
@@ -190,7 +191,8 @@ img.no-art { visibility: hidden; }
 .np-seek::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; margin-top: -6px; background: var(--ink); border: 0; }
 .np-controls { display: flex; align-items: center; justify-content: space-between; }
 .np-controls .icon-only { width: 56px; height: 56px; }
-.np-main { width: 76px !important; height: 76px !important; background: var(--accent); color: var(--accent-ink) !important; }
+.np-main { width: 72px !important; height: 72px !important; border: 2px solid var(--accent); border-radius: 50%; color: var(--accent) !important; }
+.np-main:active { background: var(--accent); color: var(--accent-ink) !important; }
 .eq { display: grid; gap: 8px; }
 .eq-presets { display: flex; flex-wrap: wrap; gap: 6px 18px; padding: 4px 0 8px; }
 .eq-band { display: grid; grid-template-columns: 64px 1fr 72px; align-items: center; gap: 10px; min-height: 40px; }
@@ -198,24 +200,38 @@ img.no-art { visibility: hidden; }
 .eq-db { text-align: right; }
 .eq-band input[type="range"] { width: 100%; accent-color: var(--accent); }
 /* Lyrics replace the cover while shown: synced lines scroll with the song and the current one is lit; plain lyrics scroll by hand. */
-.np-lyrics { position: absolute; inset: 0; overflow-y: auto; overscroll-behavior: contain; padding: 38% 4px; text-align: center; scroll-behavior: smooth; mask-image: linear-gradient(transparent, #000 14%, #000 86%, transparent); -webkit-mask-image: linear-gradient(transparent, #000 14%, #000 86%, transparent); }
+.np-lyrics { position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; text-align: center; scroll-behavior: smooth; mask-image: linear-gradient(transparent, #000 12%, #000 88%, transparent); -webkit-mask-image: linear-gradient(transparent, #000 12%, #000 88%, transparent); }
 .np-lyrics[hidden] { display: none; }
-.np-lyrics.is-plain { padding: 8% 4px; text-align: left; }
-.np-lyrics p { margin: 0 0 14px; font-size: 22px; line-height: 1.3; font-weight: 600; color: var(--ink-faint); transition: color 0.25s, transform 0.25s; transform-origin: center; }
+/* Half a box of room before and after timed lines, so the first and last can stand in the middle like the others. */
+.np-lyrics::before, .np-lyrics::after { content: ""; display: block; height: 50%; }
+.np-lyrics.is-plain::before, .np-lyrics.is-plain::after { content: none; }
+.np-lyrics.is-plain { padding: 8% 0; text-align: left; }
+/* Each line keeps room at its sides, so the line being sung can grow without running off the screen (owner, 2026-11-26). */
+.np-lyrics p { margin: 0 0 14px; padding: 0 6%; font-size: 22px; line-height: 1.3; font-weight: 600; overflow-wrap: anywhere; color: rgba(242, 236, 230, 0.58); text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95), 0 0 14px rgba(0, 0, 0, 0.7); transition: color 0.25s, transform 0.25s; transform-origin: center; }
 .np-lyrics.is-plain p { font-size: 18px; font-weight: 500; color: var(--ink); margin-bottom: 0; min-height: 1.3em; }
-.np-lyrics p.is-sung { color: var(--ink-dim, var(--ink-faint)); }
-.np-lyrics p.is-now { color: var(--ink); transform: scale(1.06); }
-.np-lyrics .np-lyrics-note { font-size: 15px; font-weight: 400; color: var(--ink-faint); padding: 0 12%; }
+.np-lyrics p.is-sung { color: rgba(242, 236, 230, 0.76); }
+.np-lyrics p.is-now { color: #fff; transform: scale(1.06); }
+.np-lyrics .np-lyrics-note { font-size: 15px; font-weight: 400; color: var(--ink-dim); padding: 0 12%; }
 .np-art.has-lyrics .np-cover, .np-art.has-lyrics .np-vis { visibility: hidden; }
-.np-extras .link.is-on { color: var(--accent, inherit); }
-.np-extras { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 20px; min-height: 28px; }
-.np-extras .link { font-size: 14px; }
-.np-next { font-size: 13px; color: var(--ink-faint); text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-height: 18px; }
-
+/* The cover behind the lyrics: faded, and darker at the top and bottom where the names and controls are. */
+.np-backart { display: none; position: absolute; inset: 0; z-index: 1; overflow: hidden; pointer-events: none; }
+.np-backart img { width: 100%; height: 100%; object-fit: cover; opacity: 0.4; }
+.np-backart::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(11, 8, 6, 0.75), rgba(11, 8, 6, 0.3) 22%, rgba(11, 8, 6, 0.35) 62%, rgba(11, 8, 6, 0.9) 88%); }
+.playing.has-lyrics .np-backart { display: block; }
+.playing.has-lyrics .np { gap: 8px; padding-bottom: calc(var(--inset-bottom) + 8px); }
+.playing.has-lyrics .np-art { margin: 0 -20px; }
+.playing.has-lyrics .np-info h1 { font-size: 18px; -webkit-line-clamp: 1; }
+.playing.has-lyrics .np-info-text { gap: 1px; }
+.playing.has-lyrics #np-artist { font-size: 14px; color: var(--ink-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.playing.has-lyrics #np-album { display: none; }
+.playing.has-lyrics .np-time { gap: 0; }
+.playing.has-lyrics .np-seek { height: 22px; }
+.playing.has-lyrics .np-controls .icon-only { width: 48px; height: 48px; }
+.playing.has-lyrics .np-main { width: 58px !important; height: 58px !important; }
 /* ---------- Menu sheet and toast ---------- */
 
 .sheet { position: fixed; inset: 0; z-index: 7; background: rgba(0, 0, 0, 0.55); display: flex; align-items: flex-end; }
-.sheet-box { width: 100%; background: #1a130e; border-top: 2px solid var(--accent); padding: 12px 0 calc(var(--inset-bottom) + 12px); }
+.sheet-box { width: 100%; max-height: calc(100% - var(--inset-top)); overflow-y: auto; overscroll-behavior: contain; background: #1a130e; border-top: 2px solid var(--accent); padding: 12px 0 calc(var(--inset-bottom) + 12px); }
 .sheet-title { padding: 6px 20px 10px; color: var(--ink-dim); font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sheet-button { display: block; width: 100%; padding: 16px 20px; font-size: 17px; }
 .sheet-button:active { background: rgba(255, 255, 255, 0.06); }
@@ -245,26 +261,32 @@ img.no-art { visibility: hidden; }
    "next" line; the lists get a little more room beside the A to Z strip. */
 @media (orientation: landscape) and (max-height: 520px) {
   :root { --mini: 56px; }
-  #mini-up-next { display: none; }
   .tab { padding: 8px 12px 6px; }
   .brand { font-size: 17px; }
   .tile-row.static { grid-template-columns: repeat(4, 1fr); }
-  .np { display: grid; grid-template-columns: minmax(0, 42%) minmax(0, 1fr); grid-template-rows: auto auto auto auto auto auto; column-gap: 28px; row-gap: 6px; align-content: center; padding-top: calc(var(--inset-top) + 2px); padding-bottom: calc(var(--inset-bottom) + 8px); }
+  .np { display: grid; grid-template-columns: minmax(0, 42%) minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto auto auto auto minmax(0, 1fr); column-gap: 28px; row-gap: 6px; padding-top: calc(var(--inset-top) + 2px); padding-bottom: calc(var(--inset-bottom) + 8px); }
   .np-head { grid-column: 1 / -1; grid-row: 1; }
   .np-art { grid-column: 1; grid-row: 2 / 8; }
-  .np-cover { width: auto; height: min(100%, calc(100vh - 90px)); max-width: 100%; }
-  .np-info, .np-time, .np-controls, .np-next, .np-volume, .np-extras { grid-column: 2; }
-  .np-extras { justify-content: flex-start; gap: 2px 14px; min-height: 22px; }
-  .np-extras .link { font-size: 12px; padding: 4px 0; }
-  .np-lyrics { padding: 22% 4px; }
-  .np-lyrics p { font-size: 19px; margin-bottom: 10px; }
-  .np-lyrics.is-plain { padding: 4% 4px; }
+  .np-info { grid-row: 3; }
+  .np-time { grid-row: 4; }
+  .np-controls { grid-row: 5; }
+  .np-volume { grid-row: 6; }
+  /* Taken out of the flow so the cover fits the room there is and never makes the screen taller. */
+  .np-cover { position: absolute; inset: 0; margin: auto; width: auto; height: 100%; max-width: 100%; }
+  .sheet-button { padding: 10px 20px; font-size: 15px; }
+  .np-info, .np-time, .np-controls, .np-volume { grid-column: 2; }
+  /* With lyrics they take the wider side and the whole height; the controls keep to a column on the right (owner,
+     2026-11-26). */
+  .playing.has-lyrics .np { grid-template-columns: minmax(0, 1fr) minmax(0, 36%); column-gap: 16px; }
+  .playing.has-lyrics .np-head { grid-column: 2; }
+  .playing.has-lyrics .np-art { grid-row: 1 / -1; margin: 0; }
+  .np-lyrics p { font-size: 21px; margin-bottom: 10px; }
+  .np-lyrics.is-plain { padding: 4% 0; }
   .np-lyrics.is-plain p { font-size: 16px; }
   .np-info p { font-size: 14px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; }
   .np-info h1 { font-size: 20px; -webkit-line-clamp: 1; }
   .np-controls .icon-only { width: 48px; height: 48px; }
   .np-main { width: 64px !important; height: 64px !important; }
-  .np-next { text-align: left; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -303,3 +325,23 @@ img.no-art { visibility: hidden; }
 .pick-row .check.is-on { background: var(--accent); border-color: var(--accent); }
 .pick-list { margin-top: 4px; }
 button.secondary { background: rgba(255, 255, 255, 0.1); padding: 14px 22px; min-height: 48px; margin-left: 8px; }
+
+/* Who's listening? (D213): over everything else. */
+.who { position: fixed; inset: 0; z-index: 60; overflow-y: auto; background: var(--bg, #0b0705); display: flex; }
+.who[hidden] { display: none; }
+.who-box { margin: auto; width: 100%; max-width: 34rem; box-sizing: border-box; padding: calc(24px + var(--inset-top, 0px)) 20px calc(24px + var(--inset-bottom, 0px)); display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center; }
+.who-box h1 { margin: 0 0 8px; font-size: 28px; }
+.who-list { display: flex; flex-wrap: wrap; justify-content: center; gap: 22px; }
+.who-tile { background: none; border: 0; color: inherit; padding: 4px; display: flex; flex-direction: column; align-items: center; gap: 8px; font-size: 17px; }
+.who-avatar { width: 96px; height: 96px; border-radius: 50%; display: grid; place-items: center; font-size: 44px; font-weight: 700; color: #120c09; border: 3px solid transparent; }
+.who-tile.is-current .who-avatar { border-color: var(--ink, #f2ece6); }
+.who-new { display: flex; flex-direction: column; align-items: stretch; gap: 8px; width: 100%; }
+.who-ask { display: flex; align-items: center; gap: 10px; text-align: left; }
+.who-ask input { width: 22px; height: 22px; accent-color: var(--accent); }
+/* How far a sync or a sending has got: across the screen, in the highlight colour. */
+.sync-progress { display: block; width: 100%; height: 10px; margin: 10px 0; accent-color: var(--accent); }
+.sync-progress[hidden] { display: none; }
+/* (accent-color alone left the filled part green on Android; without a value the bar keeps its moving look) */
+.sync-progress[value] { -webkit-appearance: none; appearance: none; border: 0; }
+.sync-progress[value]::-webkit-progress-bar { background: rgba(255, 255, 255, 0.16); }
+.sync-progress[value]::-webkit-progress-value { background: var(--accent); }

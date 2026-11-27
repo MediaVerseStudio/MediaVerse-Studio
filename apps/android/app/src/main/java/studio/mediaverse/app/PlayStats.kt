@@ -19,23 +19,25 @@ object PlayStats {
 
     @Synchronized
     fun played(context: Context, id: Long, now: Long = System.currentTimeMillis()) {
-        val prefs = context.applicationContext.getSharedPreferences(FILE, Context.MODE_PRIVATE)
+        val prefs = context.applicationContext.getSharedPreferences(Profiles.file(context, FILE), Context.MODE_PRIVATE)
         prefs.edit().putInt("n:$id", prefs.getInt("n:$id", 0) + 1).putLong("t:$id", now).apply()
     }
 
     /** A song was replaced by a new copy with another ID: its play count and last time go with it. */
     @Synchronized
     fun moved(context: Context, from: Long, to: Long) {
-        val prefs = context.applicationContext.getSharedPreferences(FILE, Context.MODE_PRIVATE)
-        val n = prefs.getInt("n:$from", 0)
-        if (n == 0) return
-        prefs.edit().putInt("n:$to", n).putLong("t:$to", prefs.getLong("t:$from", 0)).remove("n:$from").remove("t:$from").apply()
+        for (file in Profiles.files(context, FILE)) {
+            val prefs = context.applicationContext.getSharedPreferences(file, Context.MODE_PRIVATE)
+            val n = prefs.getInt("n:$from", 0)
+            if (n == 0) continue
+            prefs.edit().putInt("n:$to", n).putLong("t:$to", prefs.getLong("t:$from", 0)).remove("n:$from").remove("t:$from").apply()
+        }
     }
 
     /** `{ "<id>": [count, lastPlayedMillis], … }` for every song played at least once. */
     @Synchronized
     fun all(context: Context): JSONObject {
-        val prefs = context.applicationContext.getSharedPreferences(FILE, Context.MODE_PRIVATE)
+        val prefs = context.applicationContext.getSharedPreferences(Profiles.file(context, FILE), Context.MODE_PRIVATE)
         val out = JSONObject()
         for ((key, value) in prefs.all) {
             if (!key.startsWith("n:") || value !is Int) continue

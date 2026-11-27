@@ -21,7 +21,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime};
 
-pub const COMMANDS: [&str; 143] = [
+pub const COMMANDS: [&str; 145] = [
     "list_lyrics_instrumental",
     "mark_lyrics_instrumental",
     "unmark_lyrics_instrumental",
@@ -38,6 +38,7 @@ pub const COMMANDS: [&str; 143] = [
     "canonical_artist_names",
     "write_wiki_photos",
     "list_wiki_photos",
+    "wiki_photo",
     "align_album",
     "undo_album_align",
     "list_mb_ids",
@@ -136,6 +137,7 @@ pub const COMMANDS: [&str; 143] = [
     "set_archive_enabled",
     "track_cover",
     "album_pictures",
+    "art_source",
     "track_lyrics",
     "scan_defects",
     "list_defect_results",
@@ -457,6 +459,21 @@ impl Drives {
                     .collect();
                 crate::library_cover::album_pictures(&paths, (self.library_root)().as_deref())
                     .map_err(|message| failure("cover_unavailable", message))
+            }
+            "art_source" => {
+                let text = |name: &str| args.get(name).and_then(Value::as_str);
+                let path = text("path")
+                    .ok_or_else(|| failure("invalid_arguments", "'path' is required"))?;
+                let kind = text("kind")
+                    .ok_or_else(|| failure("invalid_arguments", "'kind' is required"))?;
+                crate::library_cover::art_source(
+                    path,
+                    kind,
+                    text("file"),
+                    args.get("up").and_then(Value::as_bool).unwrap_or(false),
+                    (self.library_root)().as_deref(),
+                )
+                .map_err(|message| failure("cover_unavailable", message))
             }
             "get_lyrics_settings" => Ok(
                 json!({ "enabled": self.settings.lyrics_lookup_enabled(), "base_url": self.settings.lyrics_base_url() }),
@@ -1782,6 +1799,10 @@ impl Drives {
                 }))
             }
             "list_wiki_photos" => Ok(crate::artist_photos_wiki::summary(&self.data_dir)),
+            "wiki_photo" => Ok(crate::artist_photos_wiki::photo(
+                args.get("name").and_then(Value::as_str).unwrap_or_default(),
+                &self.data_dir,
+            )),
             "find_wiki_photos" => {
                 if let Some(running) = self
                     .tag_scan
@@ -2437,6 +2458,17 @@ impl Drives {
                     let mut progress = |done: usize, total: usize| {
                         this.output.emit("job-progress", json!({ "job_id": id, "kind": "gaps", "tracks_done": done, "tracks_total": total }));
                     };
+                    // A folder that cannot be read (a network drive not connected yet) is an error, not an empty library:
+                    // an empty answer read as "nothing missing", and forgot what earlier checks had read.
+                    if let Err(error) = std::fs::read_dir(&root) {
+                        return Err(failure(
+                            "library_unreadable",
+                            format!(
+                                "The music folder {} could not be read ({error}). Check that the drive is connected, then check again.",
+                                root.display()
+                            ),
+                        ));
+                    }
                     let cache = this.data_dir.join("library-gaps-cache.json");
                     Ok(crate::library_gaps::scan_with_cache(&root, Some(&cache), &mut progress))
                 }))

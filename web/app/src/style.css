@@ -596,7 +596,6 @@ main { padding-bottom: 5rem; }
 .media-preview[hidden] { display: none; }
 #media-lyrics { width: 100%; box-sizing: border-box; }
 
-.player-bar .is-on { outline: 2px solid #e8894a; }
 /* One steady row: long titles are cut short rather than pushing the buttons onto a second line, which made the
    bar grow and shrink from song to song. The page keeps clear of it by its measured height (--player-height). */
 .player-bar { flex-wrap: nowrap; }
@@ -614,7 +613,8 @@ main { padding-bottom: calc(var(--player-height, 0px) + 2rem); }
    page up out of reach, 2026-11-17); a clipped one cannot be scrolled at all. */
 .now-playing { position: fixed; inset: 0; z-index: 30; background: #120c08; overflow: clip; color: #f6e9dc; }
 .now-playing[hidden] { display: none; }
-.np-wall { position: absolute; inset: 0; overflow: hidden; display: grid; grid-template-columns: repeat(auto-fill, 80px); grid-auto-rows: 80px; grid-auto-flow: dense; gap: 3px; justify-content: center; align-content: start; }
+/* The columns and cell size come from wallGrid() (backdrop-plan.ts) so the cells fill the width exactly, edge to edge. */
+.np-wall { position: absolute; inset: 0; overflow: hidden; display: grid; grid-template-columns: repeat(var(--wall-cols, 19), 1fr); grid-auto-rows: var(--wall-cell, 80px); grid-auto-flow: dense; gap: 3px; align-content: start; }
 .np-tile { width: 100%; height: 100%; object-fit: cover; filter: sepia(1) saturate(1.5) hue-rotate(-12deg) brightness(0.7); }
 .np-tint { position: absolute; inset: 0; background: linear-gradient(to top, rgba(20, 10, 4, 0.92), rgba(40, 20, 8, 0.45) 55%, rgba(20, 10, 4, 0.7)); }
 .np-back { position: absolute; top: 1rem; left: 1rem; width: 3rem; height: 3rem; border-radius: 50%; font-size: 1.4rem; }
@@ -841,16 +841,18 @@ input, select, textarea, .field input[type="text"], .field input[type="number"],
 }
 
 /* The wall itself. */
-.backdrop { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; background: #050404; }
+/* The full width of the window, scrollbar included (100vw), not "inset: 0": inset 0 stops at the scrollbar, so on a page tall enough to scroll the wall was 15 px narrower and the whole
+   collage jumped about 8 px sideways against a page that does not scroll (owner, 2026-11-25). The scrollbar simply covers its strip of the wall. */
+.backdrop { position: fixed; inset: 0 auto 0 0; width: 100vw; z-index: 0; overflow: hidden; pointer-events: none; background: #050404; }
 .backdrop-wall {
   position: absolute;
   inset: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, 96px);
-  grid-auto-rows: 96px;
+  /* Columns and cell size are set by wallGrid() (backdrop-plan.ts) so the cells fill the width exactly, edge to edge. */
+  grid-template-columns: repeat(var(--wall-cols, 16), 1fr);
+  grid-auto-rows: var(--wall-cell, 96px);
   grid-auto-flow: dense;
   gap: 2px;
-  justify-content: center;
   align-content: start;
   perspective: 900px;
 }
@@ -1215,9 +1217,14 @@ button.pager-button.is-active { background: var(--accent); border-color: var(--a
 .ft-source { font-size: 0.75rem; color: var(--accent); align-self: flex-start; margin-top: 0.2rem; }
 
 /* ==== Library (D52): Windows Media Player layout, Zune look ==== */
-/* The collage stays behind the library with its depth, darker than on Now Playing so the lists read easily. */
+/* The collage stays behind the library, darker than on Now Playing so the lists read easily. It used to be a heavy shade (0.78 to 0.84) over an 80% dark page panel, so only about 6% of the collage showed;
+   Library, Artist and Review now have the same shade as Home, Rip and Settings and a half-dark page panel (owner, 2026-11-25). */
 body[data-page="library"] .backdrop-shade,
-body[data-page="artist"] .backdrop-shade { background: linear-gradient(to bottom, rgba(0, 0, 0, 0.78), rgba(0, 0, 0, 0.68) 45%, rgba(0, 0, 0, 0.84)); }
+body[data-page="artist"] .backdrop-shade,
+body[data-page="review"] .backdrop-shade { background: linear-gradient(to bottom, rgba(0, 0, 0, 0.62), rgba(0, 0, 0, 0.5) 45%, rgba(0, 0, 0, 0.7)); }
+body[data-page="library"] #library-page,
+body[data-page="artist"] #artist-page,
+body[data-page="review"] #review-page { background: rgba(8, 6, 5, 0.5); }
 body[data-page="library"] main,
 body[data-page="artist"] main { max-width: 110rem; }
 
@@ -1408,12 +1415,6 @@ main > section.page section { background: rgba(255, 255, 255, 0.02); }
 #library-page, #artist-page { margin-right: 2.4rem; padding-right: 1.5rem; }
 .lib-artist-text { min-width: 0; overflow: hidden; }
 .lib-artist-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* The pages read over the collage as the library does: the same darker shade behind every page (Now Playing keeps
-   its own, brighter look). */
-body[data-page="home"] .backdrop-shade,
-body[data-page="rip"] .backdrop-shade,
-body[data-page="review"] .backdrop-shade,
-body[data-page="settings"] .backdrop-shade { background: linear-gradient(to bottom, rgba(0, 0, 0, 0.8), rgba(0, 0, 0, 0.72) 45%, rgba(0, 0, 0, 0.86)); }
 /* The pictures dialog's heading: the album (or song) large and light, its artist and year below. */
 #media-title { font-size: 2rem; font-weight: 300; margin: 0; letter-spacing: -0.01em; }
 .media-subtitle { margin: 0.1rem 0 0.6rem; color: var(--ink-dim); }
@@ -1440,6 +1441,7 @@ body[data-page="settings"] .backdrop-shade { background: linear-gradient(to bott
 .lyrics-editor .sync-choice, .lyrics-editor .sync-transport { max-width: 100%; }
 .lyrics-editor .row-actions { align-items: center; margin: 0.3rem 0; }
 .lyrics-editor .field-hint { margin: 0.3rem 0; }
+.lyrics-editor .lyrics-searched:empty { display: none; }
 .sync-choice { max-width: 100%; min-width: 0; flex: 1 1 24rem; }
 .sync-clock { font-variant-numeric: tabular-nums; color: var(--ink-dim); min-width: 3.2rem; }
 .sync-lines { list-style: none; margin: 0.3rem 0; padding: 0; max-height: 22rem; overflow-y: auto; border: 1px solid var(--line); position: relative; }
@@ -1774,12 +1776,15 @@ body[data-library="jellyfin"] [data-settings-section="review"] { display: none; 
 
 /* ---- The player bar's own controls (owner, 2026-11-23): round play button, a thin progress bar in the accent colour, times, volume: as on the TV ---- */
 .player-bar .player-play { width: 2.7rem; height: 2.7rem; padding: 0; border-radius: 50%; border: 2px solid var(--accent); background: transparent; color: var(--accent); display: grid; place-items: center; flex: none; }
+/* Play or pause sits in a ring, as on the TV and the phone (the app's square corners do not apply to it). */
+.player-bar .player-play { border-radius: 50% !important; }
+.player-bar .icon-button[aria-pressed="true"] { color: var(--accent); }
 .player-bar .player-play svg { width: 20px; height: 20px; }
 .player-bar .player-play:hover, .player-bar .player-play:focus-visible { background: var(--accent); color: var(--accent-ink); }
 .player-bar.is-loading .player-play { opacity: 0.5; }
 .player-transport { display: flex; align-items: center; gap: 0.7rem; flex: 1 1 20rem; min-width: 10rem; }
 .player-time { font-variant-numeric: tabular-nums; color: var(--ink-dim); font-size: 0.9rem; min-width: 2.8rem; text-align: center; flex: none; }
-.player-seek, .player-volume, .sync-seek { -webkit-appearance: none; appearance: none; background: transparent; height: 1.3rem; margin: 0; padding: 0; cursor: pointer; --fill: 0%; }
+.player-seek, .player-volume, .sync-seek { -webkit-appearance: none; appearance: none; background: transparent; border: 0; height: 1.3rem; margin: 0; padding: 0; cursor: pointer; --fill: 0%; }
 .player-seek, .sync-seek { flex: 1 1 auto; min-width: 5rem; }
 .player-volume { width: 6rem; flex: none; }
 .player-seek:disabled { cursor: default; opacity: 0.6; }
@@ -1817,3 +1822,23 @@ body[data-library="jellyfin"] [data-settings-section="review"] { display: none; 
 .organize-sure button { margin-right: 0.6rem; }
 .progress-bar { margin: 0.5rem 0; }
 .progress-bar progress { width: 100%; height: 0.7rem; accent-color: var(--accent, #e2793a); }
+
+/* Review > Artwork > In every song */
+.art-line { display: flex; align-items: center; gap: 0.5rem; margin: 0.15rem 0; }
+.art-thumb { width: 3rem; height: 3rem; object-fit: contain; background: rgba(255, 255, 255, 0.06); flex: none; }
+.art-choice { border: 1px solid var(--line); padding: 0.6rem; margin: 0.6rem 0; }
+.art-options { display: flex; flex-wrap: wrap; gap: 0.8rem; margin: 0.4rem 0; }
+.art-option { margin: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 0.3rem; max-width: 14rem; font-size: 0.85rem; }
+.art-option .art-thumb { width: 10rem; height: 10rem; }
+.art-problems { max-height: 14rem; overflow-y: auto; }
+.long-run { border: 1px solid var(--line-strong); padding: 0.6rem 0.8rem; margin: 0.6rem 0; }
+.long-run progress { display: block; width: 100%; height: 0.7rem; margin: 0.4rem 0; }
+.undo-bar { margin: 0.4rem 0; }
+
+/* Settings > Jellyfin > Profiles (D213). */
+.profiles-settings { margin-top: 1.4rem; }
+.profile-form { display: flex; flex-direction: column; align-items: flex-start; gap: 0.5rem; margin: 0.6rem 0; }
+.profile-form[hidden] { display: none; }
+.profile-field { display: flex; align-items: center; gap: 0.6rem; }
+.profile-field > span { min-width: 12rem; }
+.profile-field input, .profile-field select { min-width: 16rem; }

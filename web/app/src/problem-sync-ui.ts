@@ -9,6 +9,7 @@ import { el } from "./dom";
 import type { Flag } from "./flag-format";
 import type { FlagStore } from "./flags";
 import { chooseServer, chosenServer, desktopJellyfin, onChosenServerChange, readSaved as read, SESSION_STORE, writeSaved as write } from "./jellyfin-desktop";
+import { shareFlagLists } from "./jellyfin-profiles.ts";
 import { describeProblemSync, syncProblemTracks, type SongLike } from "./problem-sync.ts";
 import { describePlaylistSync, syncPlaylists, type PcPlaylist, type PlaylistSyncState } from "./playlist-sync.ts";
 import { serverLibrary, serverSongId } from "./library-mode";
@@ -138,6 +139,8 @@ export function renderProblemSync(root: HTMLElement, deps: ProblemSyncDeps): { s
     status = "Syncing…";
     draw();
     try {
+      // Anyone added to the server since the last round may check and clear the flags too (D213).
+      await shareFlagLists(jf, session).catch(() => 0);
       const flags = deps.store.index.all();
       const report = await syncProblemTracks(jf, session, { flags, library: deps.library(), done: dueDone() });
       write(DONE_STORE, []);
@@ -208,6 +211,7 @@ export function renderProblemSync(root: HTMLElement, deps: ProblemSyncDeps): { s
       }
       session = signedIn;
       write(SESSION_STORE, signedIn);
+      window.dispatchEvent(new Event("mediaverse-jellyfin-session"));
       status = `Signed in to ${signedIn.name}.`;
       code = "";
       draw();
@@ -245,6 +249,7 @@ export function renderProblemSync(root: HTMLElement, deps: ProblemSyncDeps): { s
         session = null;
         write(SESSION_STORE, null);
         status = "Signed out. Flags stay as they are.";
+        window.dispatchEvent(new Event("mediaverse-jellyfin-session"));
         draw();
       });
       actions.append(now, out);

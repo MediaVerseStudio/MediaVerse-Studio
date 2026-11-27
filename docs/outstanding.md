@@ -1,4 +1,4 @@
-# Outstanding tests and roadmap (kept by Claude; last updated 2026-11-19)
+# Outstanding tests and roadmap (kept by Claude; last updated 2026-11-26)
 
 The owner asked for this list to be shown whenever they return to the project. Update it at the end of every session
 (`docs/next-steps.md` has the narrative of where each session stopped; `docs/decision-log.md` has the decisions). **The plan (roadmap, testing plan, going public) is `docs/roadmap.md`;
@@ -9,6 +9,48 @@ this file is the detailed list of what to try by hand.** Everything below dated 
 The first public beta is out (decision D200). Everything in the lists below dated before 2026-11-24 is in it. **Not yet tried by anyone on real data or devices:** "Measure everything again" and the levelling tag writer (try one album first; both have an undo), exclusive (WASAPI) output on a real DAC, Android Auto in a car, casting to the Den TV and the amp, and the first-run path on a clean machine other than the author's virtual machine. The Samsung TV app is not a download (it must be signed for each TV); the Android app is an `.apk` on the Releases page.
 
 **First things to look at when a tester reports something:** the startup trace in the developer tools (`__mvTrace()`, `__mvSteps()`, `__mvFreezes()`), Settings > About for the version and commit, and `docs/workflow.md` for how issues are handled.
+
+## Wi-Fi sync, Jellyfin plugin, sending new music (D213-D215, 2026-11-26; branch `feat/wifi-sync`, not pushed)
+
+Design and limits: `docs/wifi-sync.md`. Installed: PC build `936ff7b`; the owner's phone `76453b8`; the second phone
+`d8fb668` (no sending to the server yet); TVs are older. The plugin is on the home server.
+
+1. Second phone, after the trip: update it; scan the Jellyfin library, sync with "Replace phone copies" on, then
+   compare its songs with the library again (many still differed on 2026-11-26).
+2. Send a real album from a phone to the server (and to the computer, over Wi-Fi), review it in the incoming folder.
+3. Watch favorites and playlists on the first syncs: a removal made just before updating may come back once.
+4. Not tried: a large send, the 5-minute limit running out, Wi-Fi sync of music on a real phone beyond pairing.
+5. Next: step 3, profiles (computer picker; apps keep profiles in the plugin; replace the passwordless users).
+6. Server: no scheduled backups yet; the plugin must be rebuilt for a new Jellyfin version.
+## Artwork in every song (D205, 2026-11-26; branch `fix/artwork-in-every-song`, not merged)
+
+1. Install the build, open Review > Artwork > In every song, add two or three albums, look at them in the library and in
+   another player, try Undo once.
+2. Add to all albums; answer the choices; Oversized images > Fix; check the problem lists.
+3. Rear covers: Automatic covers (slow, 100% matches only). Artist photos: Free photos, or Review > Artists from Jellyfin,
+   then In every song again to complete albums.
+4. Let Jellyfin rescan, sync both phones; music that was already on a phone may need "Use the server's versions".
+
+## Long runs and the tag audit (D206, 2026-11-26)
+
+1. Install the newest build before any large artwork run. Try "5 minutes' worth" once on the real library, look at the
+   result, then run unattended. Watch the time-left figure and that the computer stays awake.
+2. Not tried against a real server or a long run: Jellyfin artist photos through the new runner, the unattended wait
+   when MusicBrainz refuses, a run interrupted by the share going away.
+3. Decide on a tag clean-up tool for the findings in D206 (picture labels, old ID3v1/APE/Lyrics3 tags, damaged tags).
+
+## Pictures and the phone (D207, 2026-11-26)
+
+1. PC: Review > Artwork > Oversized images, five minutes' worth first; then Save the PNG folder pictures as JPEG; then
+   In every song.
+2. Phones: install the new app, Sync everything (or five minutes' worth); check the songs moved from "MediaVerse Home"
+   and playlists and hearts survived. Then decide about "Replace phone copies with the library's versions".
+3. Decide: should removing the last choice take the fetched songs off? Setup wizard (roadmap).
+
+## Phone playback screen (D208, 2026-11-26)
+
+- **Try on a real phone:** long lyric lines, the cover behind the lyrics, the three-dot menu, both orientations.
+- **Try:** Android Auto still shows what is coming next; the screen while playing on a TV or speaker.
 
 ## A. Outstanding tests (nothing to build: someone has to try it)
 

@@ -1,7 +1,7 @@
 // Small stroke icons used across the app (owner, 2026-11-04: flag, favorite, shuffle and repeat are icons only,
 // named by a tooltip). Drawn as inline SVG in the text colour, so they follow the theme.
 
-export type IconName = "heart" | "flag" | "lyrics" | "search" | "add" | "remove" | "play-next" | "shuffle" | "repeat" | "repeat-one" | "play" | "pause" | "previous" | "next" | "back" | "columns" | "edit" | "picture" | "scan" | "pin" | "tv" | "volume" | "mute" | "mini";
+export type IconName = "heart" | "flag" | "lyrics" | "search" | "add" | "remove" | "play-next" | "shuffle" | "repeat" | "repeat-one" | "play" | "pause" | "previous" | "next" | "back" | "columns" | "edit" | "picture" | "scan" | "pin" | "tv" | "volume" | "mute" | "mini" | "more";
 
 const PATHS: Record<IconName, string[]> = {
   // A rounder, evenly weighted heart and a waving flag on a pole (the earlier shapes looked slightly off).
@@ -27,6 +27,8 @@ const PATHS: Record<IconName, string[]> = {
   scan: ["M3 12h3l2-6 4 12 2-6h7"],
   pin: ["M12 17v5", "M8 3h8l-1 6 3 3v2H6v-2l3-3z"],
   tv: ["M3 5h18v12H3z", "M8 21h8", "M12 17v4"],
+  // Three dots one above another: a menu.
+  more: ["M12 4.2a1.3 1.3 0 1 0 0 2.6a1.3 1.3 0 1 0 0-2.6z", "M12 10.7a1.3 1.3 0 1 0 0 2.6a1.3 1.3 0 1 0 0-2.6z", "M12 17.2a1.3 1.3 0 1 0 0 2.6a1.3 1.3 0 1 0 0-2.6z"],
   volume: ["M4 9.5h3.5L12 5.5v13l-4.5-4H4z", "M15.5 9a4 4 0 0 1 0 6", "M18 6.5a8 8 0 0 1 0 11"],
   mute: ["M4 9.5h3.5L12 5.5v13l-4.5-4H4z", "M16 9.5l5 5", "M21 9.5l-5 5"],
 };

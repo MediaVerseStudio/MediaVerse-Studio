@@ -52,6 +52,12 @@ export function textToUse(c: LyricsCandidate): string | null {
   return null;
 }
 
+/** A web search for a song's words, to read in the browser: artist, album, song and "lyrics" (owner, 2026-11-26). */
+export function lyricsWebSearchUrl(title: string, artist: string | null, album: string | null): string {
+  const words = [artist, album, title, "lyrics"].filter((w): w is string => !!w && w.trim() !== "");
+  return `https://www.google.com/search?q=${encodeURIComponent(words.join(" "))}`;
+}
+
 export function lookupSummary(found: LyricsLookup): string {
   if (found.results.length === 0) return "LRCLIB has no lyrics for this song.";
   if (found.via === "exact") return "LRCLIB has this song. Check the lyrics, then use them.";

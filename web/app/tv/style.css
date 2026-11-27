@@ -341,7 +341,7 @@ body[data-screen="playing"] #backdrop { visibility: hidden; }
 /* Now Playing: round icon buttons in one row, play larger; the focused one names itself underneath. */
 .np-controls { align-items: center; gap: 18px; }
 .np-controls button { position: relative; min-width: 0; width: 84px; height: 84px; padding: 0; border-radius: 50%; border: 3px solid transparent; background: transparent; color: var(--ink); font-size: 0; display: grid; place-items: center; }
-.np-controls button.np-main { width: 108px; height: 108px; border-color: var(--ink); }
+.np-controls button.np-main { width: 108px; height: 108px; border-color: var(--accent); }
 .np-controls button:focus { background: rgba(255, 255, 255, 0.12); transform: scale(1.08); }
 .np-controls button:focus::after { content: attr(aria-label); position: absolute; top: calc(100% + 10px); left: 50%; transform: translateX(-50%); white-space: nowrap; font-size: 22px; font-weight: 600; color: var(--ink); background: rgba(10, 6, 3, 0.85); padding: 4px 12px; border-radius: 6px; pointer-events: none; }
 .np-controls button.is-on { color: var(--accent); }
