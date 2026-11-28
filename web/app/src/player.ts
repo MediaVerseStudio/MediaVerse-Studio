@@ -611,6 +611,8 @@ export function initPlayer(root: HTMLElement): Player {
       });
     }
   }
+  // Volume changes (slider or mute) are forwarded so cast sessions can follow them.
+  primary.addEventListener("volumechange", () => signal.dispatchEvent(new Event("volumechange")));
 
   // Exclusive output switched on or off (or another sound card chosen) in Settings: the song playing carries on from where it is, through the new output.
   let lastNative = JSON.stringify(nativePrefs());
