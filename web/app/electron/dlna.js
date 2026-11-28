@@ -242,8 +242,10 @@ function createDlna({ log = () => {}, http: send = request, addresses = localAdd
       body: soapBody(service, action, { InstanceID: 0, ...args }),
     });
     if (reply.status !== 200) {
-      const why = tag(reply.body, "errorDescription") || tag(reply.body, "faultstring") || `error ${reply.status}`;
-      throw new Error(`${renderer.name} refused ${action}: ${why}`);
+      const errorCode = tag(reply.body, "errorCode");
+      const why = tag(reply.body, "errorDescription") || tag(reply.body, "faultstring") || `HTTP ${reply.status}`;
+      const detail = errorCode ? ` (UPnP ${errorCode})` : "";
+      throw new Error(`${renderer.name} refused ${action}: ${why}${detail}`);
     }
     return reply.body;
   }

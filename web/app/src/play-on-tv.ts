@@ -319,6 +319,18 @@ export function initPlayOnTv(playerBar: HTMLElement, player: Player, openTvSetti
     handingBack = false;
   }
 
+  // While casting, the player bar volume slider should control the cast device, not the local audio element.
+  let volumeSyncTimer: number | undefined;
+  audio.addEventListener("volumechange", () => {
+    if (casting?.kind !== "dlna") return;
+    const target = casting;
+    const { volume: level, muted } = player.controls.volume();
+    const effective = muted ? 0 : level;
+    target.volume = effective;
+    window.clearTimeout(volumeSyncTimer);
+    volumeSyncTimer = window.setTimeout(() => void control(target.id, "volume", effective), 150);
+  });
+
   // Playing here while something else plays: the music comes back here and the other device stops.
   audio.addEventListener("play", () => {
     if (casting && !handingBack) {
